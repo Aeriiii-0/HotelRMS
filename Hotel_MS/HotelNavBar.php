@@ -27,6 +27,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav">
+         <li class="nav-item">
+          <a class="nav-link <?php echo ($current_page == 'Room.php') ? 'active' : ''; ?>" href="Room.php">Room</a>
+        </li>
         <li class="nav-item">
           <a class="nav-link <?php echo ($current_page == 'RoomType.php') ? 'active' : ''; ?>" href="RoomType.php">Room Types</a>
         </li>
@@ -47,6 +50,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
         </li>
         <li class="nav-item">
           <a class="nav-link <?php echo ($current_page == 'ReservationForm.php') ? 'active text-info' : ''; ?>" href="ReservationForm.php">Reservation Form</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link <?php echo ($current_page == 'Receptionist.php') ? 'active' : ''; ?>" href="Receptionist.php">Receptionist</a>
         </li>
       </ul>
     </div>
