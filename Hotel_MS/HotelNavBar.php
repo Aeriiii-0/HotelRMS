@@ -14,7 +14,7 @@
             border-radius: 0 !important;
         }
         
-        /* Complementary navbar styling */
+       
         .navbar-custom {
             background: linear-gradient(135deg, #8FA78E 0%, #9CB89B 100%) !important;
             padding-left: 0 !important;
@@ -114,7 +114,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
           <a class="nav-link <?php echo ($current_page == 'Staff.php') ? 'active' : ''; ?>" href="Staff.php">Staff</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link <?php echo ($current_page == 'ReservationForm.php') ? 'active text-info' : ''; ?>" href="ReservationForm.php">Reservation Form</a>
+          <a class="nav-link <?php echo ($current_page == 'BookCoast.php') ? 'active' : ''; ?>" href="Hotel/BookCoast.php">
+            Reservation Form
+          </a>
         </li>
         <li class="nav-item">
           <a class="nav-link <?php echo ($current_page == 'Receptionist.php') ? 'active' : ''; ?>" href="Receptionist.php">Receptionist</a>
@@ -123,5 +125,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
     </div>
   </div>
 </nav>
+
 
 <div class="container">
