@@ -44,12 +44,9 @@
 </form>
 
 <?php
-$DBHost= "localhost";
-$DBUser= "root";
-$DBPass= "1234";
-$DBName= "hotel";
 
-$conn= mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
+include("database.php");
+
 
 if (!$conn){
     die("Error connecting database.".mysqli_error($conn));
