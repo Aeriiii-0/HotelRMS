@@ -39,10 +39,7 @@
 </form>
 
 <?php
-$DBHost= "localhost";
-$DBUser= "root";
-$DBPass= "1234";
-$DBName= "hotel";
+include("database.php");
 
 $conn= mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
 

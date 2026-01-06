@@ -45,10 +45,8 @@
 <?php
 
 //add nav bar sa taas babe
-$DBHost= "localhost";
-$DBUser= "root";
-$DBPass= "1234";
-$DBName= "hotel";
+include("database.php");
+//look at the database.php file to change pass
 
 $conn= mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
 

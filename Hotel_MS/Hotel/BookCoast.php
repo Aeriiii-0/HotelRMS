@@ -1,10 +1,6 @@
 <?php
 // Database connection
-$DBHost = "localhost";
-$DBUser = "root";
-$DBPass = "1234";
-$DBName = "hotel";
-$conn = mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
+include("database.php");
 
 // Check connection
 if (!$conn) {
