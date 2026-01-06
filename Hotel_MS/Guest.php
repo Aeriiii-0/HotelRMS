@@ -4,41 +4,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pristine-Coast Whale Hotel</title>
+    <link rel="stylesheet" href="Style.css">
 </head>
 <body>
 
 <?php include 'HotelNavBar.php'; ?>
-<form action="" method="POST">
-  <br> <br> <br>
 
-      <center>
-        <h2> Guest Information</h2>
+<div class="">
+    <h2>Guest Information</h2>
 
-         <label for="">Guest ID:</label> 
-         <input type="number" name="guest_id" id="guest_id"> <br> <br>
+    <form action="" method="POST">
 
-         <label for="">First Name:</label> 
-         <input type="text" name="first_name" id="first_name"> <br> <br>
+        <label>Guest ID:</label> 
+        <input type="number" name="guest_id" id="guest_id">
 
-         <label for="">Last Name:</label> 
-         <input type="text" name="last_name" id="last_name"> <br> <br>
+        <label>First Name:</label> 
+        <input type="text" name="first_name" id="first_name">
+
+        <label>Last Name:</label> 
+        <input type="text" name="last_name" id="last_name">
        
-         <label for="">Contact Information:</label> 
-         <input type="number" name="contact_info" id="contact_info"> <br> <br>
-        
-        
-            <br> <br>
-          
-            <input type="submit" name="InsertSub" value="Add">
-            <input type="submit" name="EditSub" value="Edit">
-            <input type="submit" name="ViewSub" value="View">
-            <input type="submit" name="SearchSub" value="Search">
-            <input type="submit" name="DeleteSub" value="Delete">
-            <input type="reset" name="ResetSub" value="Reset">
+        <label>Contact Information:</label> 
+        <input type="number" name="contact_info" id="contact_info">
+</div>
+
+        <center>
+        <div class="btn-group">
+            <input type="submit" name="InsertSub" value="Add" class="btn insert">
+            <input type="submit" name="EditSub" value="Edit" class="btn update">
+            <input type="submit" name="ViewSub" value="View" class="btn view">
+            <input type="submit" name="SearchSub" value="Search" class="btn search">
+            <input type="submit" name="DeleteSub" value="Delete" class="btn delete">
+            <input type="reset" name="ResetSub" value="Reset" class="btn reset">
+        </div>
         </center>
 
-</form>
-      
+    </form>
+
 
 <?php
 

@@ -4,13 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pristine-Coast Whale Hotel</title>
+     <link rel="stylesheet" href="Style.css">
 </head>
 <body>
 
 <?php include 'HotelNavBar.php'; ?>
 <form action="" method="POST">
-    <br> <br> <br>
-    <center>
+ 
+    
         <h2> Stay</h2>
 
         <label>Stay ID:</label> 
@@ -25,13 +26,16 @@
         <label>Reservation ID:</label> 
         <input type="number" name="reservation_id"> <br> <br>
         
-        <input type="submit" name="InsertSub" value="Add">
-        <input type="submit" name="EditSub" value="Edit">
-        <input type="submit" name="ViewSub" value="View">
-        <input type="submit" name="SearchSub" value="Search">
-        <input type="submit" name="DeleteSub" value="Delete">
-        <input type="reset" name="ResetSub" value="Reset">
-    </center>
+         <center>
+        <div class="btn-group">
+            <input type="submit" name="InsertSub" value="Add" class="btn insert">
+            <input type="submit" name="EditSub" value="Edit" class="btn update">
+            <input type="submit" name="ViewSub" value="View" class="btn view">
+            <input type="submit" name="SearchSub" value="Search" class="btn search">
+            <input type="submit" name="DeleteSub" value="Delete" class="btn delete">
+            <input type="reset" name="ResetSub" value="Reset" class="btn reset">
+        </div>
+        </center>
 </form>
 
 <?php

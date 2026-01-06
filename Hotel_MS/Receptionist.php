@@ -4,13 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Receptionist Dashboard</title>
+    <link rel="stylesheet" href="Style.css">
 </head>
 <body>
 
 <?php include 'HotelNavBar.php'; ?>
 <center>
-
-<h1>Receptionist Dashboard - Pristine-Coast Whale Hotel</h1>
 
 <?php
 $DBHost = "localhost";
@@ -182,7 +181,7 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
     <label>Check-In Time:</label>
     <input type="datetime-local" name="check_in_time" required>
     <br><br>
-    <input type="submit" name="check_in" value="Check In Guest">
+    <input type="submit" name="check_in" value="Check In Guest"  class="btn insert">
 </form>
 
 <br>
@@ -195,7 +194,7 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
     <label>Check-Out Time:</label>
     <input type="datetime-local" name="check_out_time" required>
     <br><br>
-    <input type="submit" name="check_out" value="Check Out Guest">
+    <input type="submit" name="check_out" value="Check Out Guest"  class="btn update">
 </form>
 
 </center>
