@@ -120,7 +120,7 @@ $result = mysqli_query($conn, $sql);
                 echo"<td>".$row['room_id']."</td>";
                 echo "<td>ROOM " . $row['room_number'] . "</td>";
                 echo "<td>" . ($row['guest_name'] ? $row['guest_name'] : 'na') . "</td>";
-                echo "<td>" . ($row['check_in'] ? date('g:iA', strtotime($row['check_in'])) : 'na') . "</td>";
+                echo "<td>" . ($row['start_date'] ? date('g:iA', strtotime($row['start_date'])) : 'na') . "</td>";
                 echo "<td>" . ($row['end_date'] ? date('g:i A', strtotime($row['end_date'])) : 'na') . "</td>";
                 
                 if ($row['reservation_status'] == 'CHECKED OUT') {
