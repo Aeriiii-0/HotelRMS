@@ -518,7 +518,7 @@ if (isset($_POST['SubmitBooking'])) {
 <body>
 
   <nav class="navbar navbar-expand-lg fixed-top px-3">
-    <a class="navbar-brand" href="#">
+    <a class="navbar-brand" href="hotel.php">
       <img src="images/coastwhale-logo-removebg.png" alt="Coast Whale Hotel" class="navbar-logo">
       Coast Whale Hotel
     </a>
