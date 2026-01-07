@@ -1,7 +1,11 @@
 <?php
 // Database connection
-include("database.php");
+$DBHost = "localhost";
+$DBUser = "customer";
+$DBPass = "";
+$DBName = "hotel";
 
+$conn = mysqli_connect($DBHost,$DBUser,$DBPass,$DBName);
 // Check connection
 if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
@@ -13,7 +17,7 @@ $booking_status = "";
 
 if (isset($_POST['SubmitBooking'])) {
     if (empty($_POST['first_name']) || empty($_POST['last_name']) || empty($_POST['contact_info']) || 
-        empty($_POST['start_date']) || empty($_POST['end_date']) || empty($_POST['amount'])) {
+        empty($_POST['start_date']) || empty($_POST['end_date']) || empty($_POST['amount']) || empty($_POST['email_address'])) {
         $booking_message = "Please complete all fields.";
         $booking_status = "error";
     } else {
@@ -24,17 +28,41 @@ if (isset($_POST['SubmitBooking'])) {
             $room_data = mysqli_fetch_assoc($room_result);
             $assigned_room_id = $room_data['room_id'];
 
-            $sql_guest = "INSERT INTO guest (first_name, last_name, contact_info) 
-                          VALUES ('".$_POST['first_name']."', '".$_POST['last_name']."', '".$_POST['contact_info']."')";
+            //Validates if guest already has records
+            $sql_is_guest_new = "SELECT guest_id FROM guest WHERE email = '$_POST[email_address]' LIMIT 1";
+            $has_new_guest = mysqli_query($conn,$sql_is_guest_new);
             
-            if (mysqli_query($conn, $sql_guest)) {
-                $new_guest_id = mysqli_insert_id($conn);
+            $new_guest_id = "";
+            if(mysqli_num_rows($has_new_guest) > 0){
+              if ($row = mysqli_fetch_assoc($has_new_guest)) {
+              $new_guest_id = $row['guest_id'];
+              }
+            }
 
-                $sql_res = "INSERT INTO reservation (guest_id, room_id, start_date, end_date, reservation_status) 
-                            VALUES ('$new_guest_id', '$assigned_room_id', '".$_POST['start_date']."', '".$_POST['end_date']."', 'PENDING')";
+            else{
+              $sql_guest = "INSERT INTO guest (first_name, last_name, email) 
+                            VALUES ('".$_POST['first_name']."', '".$_POST['last_name']."', '".$_POST['email_address']."')";
+                if (mysqli_query($conn, $sql_guest)) {
+                $new_guest_id = mysqli_insert_id($conn);
+                }
+            }
+
+
+            
+            //creates the reservation using the new added guest id
+                // $sql_res = "INSERT INTO reservation (guest_id, room_id, start_date, end_date, contact_info, reservation_status) 
+                //             VALUES ('$new_guest_id', '$assigned_room_id', '".$_POST['start_date']."', '".$_POST['end_date']."', '".$_POST['contact_info']."', 'PENDING')";
                 
-                if (mysqli_query($conn, $sql_res)) {
-                    $new_res_id = mysqli_insert_id($conn);
+                $sql_res = "CALL make_reservation('$new_guest_id','$assigned_room_id','$_POST[start_date]','$_POST[end_date]','$_POST[contact_info]')";
+
+                $res_result = mysqli_query($conn, $sql_res);
+                if ($res_result) {
+                  $row = mysqli_fetch_assoc($res_result);
+                    $new_res_id = $row['reservation_id'];
+
+                    while(mysqli_more_results($conn)) {
+                    mysqli_next_result($conn);
+                    } 
 
                     $sql_pay = "INSERT INTO payment (amount, reservation_id) 
                                 VALUES ('".$_POST['amount']."', '$new_res_id')";
@@ -43,7 +71,7 @@ if (isset($_POST['SubmitBooking'])) {
                     $booking_message = "Reservation Requested! Your Reservation ID is: " . $new_res_id . ". Status: PENDING ADMIN CONFIRMATION";
                     $booking_status = "success";
                 }
-            }
+            
         } else {
             $booking_message = "Sorry, no rooms of that type are currently available.";
             $booking_status = "error";

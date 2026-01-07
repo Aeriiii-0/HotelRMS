@@ -11,12 +11,8 @@
 <?php include 'HotelNavBar.php'; ?>
 
 <?php
-$DBHost= "localhost";
-$DBUser= "root";
-$DBPass= "";
-$DBName= "hotel";
+include("database.php");
 
-$conn= mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
 
 if (!$conn){
     die("Error connecting database.".mysqli_error($conn));

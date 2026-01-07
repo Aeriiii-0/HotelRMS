@@ -96,11 +96,11 @@ if(isset($_POST['LoginSub'])){
     $username = filter_var($_POST['username'], FILTER_SANITIZE_STRING);
     $password = filter_var($_POST['password'], FILTER_SANITIZE_STRING);
    
-    $sql = "SELECT * FROM admin WHERE username = '$username' AND password = `$password` ";
+    $sql = "SELECT * FROM admin WHERE username = '$username' AND password = '$password'";
     $result = mysqli_query($conn, $sql);
 
     if(mysqli_num_rows($result) == 1){
-        header("Location: HotelNavBar.php");
+        header("Location: Receptionist.php");
         exit();
     } else {
         echo "<script>alert('Invalid username or password')</script>";

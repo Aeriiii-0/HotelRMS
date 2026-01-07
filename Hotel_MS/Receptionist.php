@@ -24,11 +24,18 @@ if (isset($_POST['check_in'])) {
     $reservation_id = $_POST['reservation_id'];
     $check_in_time = $_POST['check_in_time'];
     
-    $update_reservation = "UPDATE reservation SET reservation_status = 'CHECKED IN' WHERE reservation_id = '$reservation_id'";
-    $insert_stay = "INSERT INTO stay (check_in, reservation_id) VALUES ('$check_in_time', '$reservation_id')";
+    $update_reservation = "CALL check_in_reservation($reservation_id)";
+    //$update_reservation = "UPDATE reservation SET reservation_status = 'CHECKED IN' WHERE reservation_id = '$reservation_id'";
+    //$insert_stay = "INSERT INTO stay (check_in, reservation_id) VALUES ('$check_in_time', '$reservation_id')";
     
-    if (mysqli_query($conn, $update_reservation) && mysqli_query($conn, $insert_stay)) {
-        echo "<p>Guest checked in successfully!</p>";
+    // if (mysqli_query($conn, $update_reservation) && mysqli_query($conn, $insert_stay)) {
+    if ($row = mysqli_fetch_assoc(mysqli_query($conn,$update_reservation))) {
+        // echo "<p>Guest checked in successfully!</p>";
+        echo "<p>".$row['message']."</p>";
+
+        while(mysqli_more_results($conn)) {
+            mysqli_next_result($conn);
+        }
     } else {
         echo "<p>Error checking in: " . mysqli_error($conn) . "</p>";
     }
@@ -38,13 +45,35 @@ if (isset($_POST['check_out'])) {
     $reservation_id = $_POST['reservation_id'];
     $check_out_time = $_POST['check_out_time'];
     
-    $update_reservation = "UPDATE reservation SET reservation_status = 'CHECKED OUT' WHERE reservation_id = '$reservation_id'";
-    $update_stay = "UPDATE stay SET check_out = '$check_out_time' WHERE reservation_id = '$reservation_id' AND check_out IS NULL";
+    $update_reservation = "CALL check_out_reservation($reservation_id)";
+    //$update_reservation = "UPDATE reservation SET reservation_status = 'CHECKED OUT' WHERE reservation_id = '$reservation_id'";
+    // $update_stay = "UPDATE stay SET check_out = '$check_out_time' WHERE reservation_id = '$reservation_id' AND check_out IS NULL";
     
-    if (mysqli_query($conn, $update_reservation) && mysqli_query($conn, $update_stay)) {
-        echo "<p>Guest checked out successfully! Room set to maintenance.</p>";
+    // if (mysqli_query($conn, $update_reservation) && mysqli_query($conn, $update_stay)) {
+    if ($row = mysqli_fetch_assoc(mysqli_query($conn, $update_reservation))) {
+        echo "<p>".$row['message']."</p>";
+        while(mysqli_more_results($conn)) {
+            mysqli_next_result($conn);
+        }
+        // echo "<p>Guest checked out successfully! Room set to maintenance.</p>";
     } else {
         echo "<p>Error checking out: " . mysqli_error($conn) . "</p>";
+    }
+}
+
+if (isset($_POST['Maintenance'])) {
+    $roomID = $_POST['roomID'];
+    $maintenance_Procedure = "CALL make_room_status_available('$roomID')";
+
+    if(mysqli_query($conn,$maintenance_Procedure)){
+        echo "<p>Room cleaned and is now available!</p>";
+
+        while(mysqli_more_results($conn)) {
+            mysqli_next_result($conn);
+        }
+    }
+    else{
+        echo "<p> Error cleaning: " .mysqli_error($conn)."</p>";
     }
 }
 
@@ -74,6 +103,7 @@ $result = mysqli_query($conn, $sql);
 <table border="1" cellpadding="10" cellspacing="0">
     <thead>
         <tr>
+            <th>ID</th>
             <th>Room</th>
             <th>Guest Name</th>
             <th>Check In Time</th>
@@ -87,6 +117,7 @@ $result = mysqli_query($conn, $sql);
         if (mysqli_num_rows($result) > 0) {
             while ($row = mysqli_fetch_assoc($result)) {
                 echo "<tr>";
+                echo"<td>".$row['room_id']."</td>";
                 echo "<td>ROOM " . $row['room_number'] . "</td>";
                 echo "<td>" . ($row['guest_name'] ? $row['guest_name'] : 'na') . "</td>";
                 echo "<td>" . ($row['check_in'] ? date('g:iA', strtotime($row['check_in'])) : 'na') . "</td>";
@@ -118,9 +149,16 @@ $result = mysqli_query($conn, $sql);
                         <input type='submit' name='check_out' value='Check Out'>
                     </form>";
                 } elseif ($row['reservation_status'] == 'CHECKED OUT') {
-                    echo "<button>View</button>";
+                    echo "<form method='POST' style='display:inline;'>
+                        <input type='hidden' name='roomID' value='" . $row['room_id'] . "'>
+                        <input type='submit' name='Maintenance' value='Clean Room'>
+                    </form>";
                 } else {
-                    echo "<button>View</button>";
+                    // echo "<button>View</button>";
+                    echo "<form method='POST' style='display:inline;'>
+                        <input type='hidden' name='roomID' value='" . $row['room_id'] . "'>
+                        <input type='submit' name='Maintenance' value='Clean Room'>
+                    </form>";
                 }
                 echo "</td>";
                 echo "</tr>";

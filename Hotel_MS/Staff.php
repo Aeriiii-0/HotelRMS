@@ -21,6 +21,9 @@
          <label for="">First Name:</label> 
          <input type="text" name="first_name" id="first_name"> <br> <br>
 
+         <label for="">Middle Name:</label> 
+         <input type="text" name="middle_name" id="middle_name"> <br> <br>
+
          <label for="">Last Name:</label> 
          <input type="text" name="last_name" id="last_name"> <br> <br>
         
@@ -34,6 +37,12 @@
                 <option value="Management">Management</option>
             </select>
 
+            <label for="status" name= "status" id="status">Status: </label> 
+      
+            <select name="status" id="status">
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+            </select>
             <br> <br>
           
              <center>
@@ -53,13 +62,7 @@
 <?php
 
 //add nav bar sa taas babe
-$DBHost= "localhost";
-$DBUser= "root";
-$DBPass= "1234";
-$DBName= "hotel";
-
-$conn= mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
-
+include("database.php");
 if (!$conn){
     die("Error connecting database.".mysqli_error());
 }
@@ -96,8 +99,10 @@ if(isset($_POST['ViewSub'])){
         <tr>
             <th>Staff ID</th>
             <th>First Name</th>
+            <th>Middle Name</th>
             <th>Last Name </th>
             <th>Role</th> 
+            <th>Status</th> 
         </tr>";
 
     while($rows= mysqli_fetch_assoc($result)){
@@ -105,8 +110,10 @@ if(isset($_POST['ViewSub'])){
         <tr>
             <td>".$rows['staff_id']."</td>
             <td>".$rows['first_name']."</td>
+            <td>".$rows['middle_name']." </td>
             <td>".$rows['last_name']." </td>
             <td>".$rows['role']."</td>
+            <td>".$rows['status']."</td>
         </tr>";
     }
         

@@ -24,8 +24,8 @@
         <label>Last Name:</label> 
         <input type="text" name="last_name" id="last_name">
        
-        <label>Contact Information:</label> 
-        <input type="number" name="contact_info" id="contact_info">
+        <label>Email Address:</label> 
+        <input type="text" name="email" id="email">
 </div>
 
         <center>
@@ -47,8 +47,6 @@
 //add nav bar sa taas babe
 include("database.php");
 //look at the database.php file to change pass
-
-$conn= mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
 
 if (!$conn){
     die("Error connecting database.".mysqli_error());
@@ -87,7 +85,7 @@ if(isset($_POST['ViewSub'])){
             <th>Guest ID</th>
             <th>First Name</th>
             <th>Last Name </th>
-            <th>Contact Information</th> 
+            <th>Email Address</th> 
         </tr>";
 
     while($rows= mysqli_fetch_assoc($result)){
@@ -96,7 +94,7 @@ if(isset($_POST['ViewSub'])){
             <td>".$rows['guest_id']."</td>
             <td>".$rows['first_name']."</td>
             <td>".$rows['last_name']." </td>
-            <td>".$rows['contact_info']."</td>
+            <td>".$rows['email']."</td>
         </tr>";
     }
         
