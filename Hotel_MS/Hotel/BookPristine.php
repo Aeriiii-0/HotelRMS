@@ -58,7 +58,14 @@ if (isset($_POST['SubmitBooking'])) {
                 $res_result = mysqli_query($conn, $sql_res);
                 if ($res_result) {
                   $row = mysqli_fetch_assoc($res_result);
-                    $new_res_id = $row['reservation_id'];
+                  if (reset($row)== "ROOM NOT AVAILABLE DURING REQUESTED TIME"){
+                    $booking_message = "Sorry, no rooms of that type are currently available.";
+                  }
+                  else{
+  
+                  
+                  
+                  $new_res_id = $row['reservation_id'];
 
                     while(mysqli_more_results($conn)) {
                     mysqli_next_result($conn);
@@ -70,6 +77,7 @@ if (isset($_POST['SubmitBooking'])) {
 
                     $booking_message = "Reservation Requested! Your Reservation ID is: " . $new_res_id . ". Status: PENDING ADMIN CONFIRMATION";
                     $booking_status = "success";
+                  }
                 }
             
         } else {
