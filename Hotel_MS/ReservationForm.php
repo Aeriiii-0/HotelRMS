@@ -1,75 +1,113 @@
 <?php
-// Database connection
+// 1. Connection and Setup
 include("database.php");
-
 $conn = mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
 
-// Check connection
 if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
 }
 
-// Handle form submission
 $booking_message = "";
 $booking_status = "";
 
 if (isset($_POST['SubmitBooking'])) {
+    // 2. Initial Validation
     if (empty($_POST['first_name']) || empty($_POST['last_name']) || empty($_POST['contact_info']) || 
         empty($_POST['start_date']) || empty($_POST['end_date']) || empty($_POST['amount']) || empty($_POST['email_address'])) {
         $booking_message = "Please complete all fields.";
         $booking_status = "error";
     } else {
-        $sql_find_room = "SELECT room_id FROM room WHERE room_type_id = '".$_POST['room_type_id']."' AND vacancy_status = 'AVAILABLE' LIMIT 1";
-        $room_result = mysqli_query($conn, $sql_find_room);
+        // Sanitize inputs
+        $first_name = mysqli_real_escape_string($conn, $_POST['first_name']);
+        $last_name = mysqli_real_escape_string($conn, $_POST['last_name']);
+        $email = mysqli_real_escape_string($conn, $_POST['email_address']);
+        $start_date = mysqli_real_escape_string($conn, $_POST['start_date']);
+        $end_date = mysqli_real_escape_string($conn, $_POST['end_date']);
+        $contact = mysqli_real_escape_string($conn, $_POST['contact_info']);
+        $amount = mysqli_real_escape_string($conn, $_POST['amount']);
+        $requested_type_id = (int)$_POST['room_type_id'];
 
-        if (mysqli_num_rows($room_result) > 0) {
-            $room_data = mysqli_fetch_assoc($room_result);
-            $assigned_room_id = $room_data['room_id'];
+        // 3. Find an Available Room ID
+        $sql_avail = "CALL fetch_available_room('$start_date', '$end_date')";
+        $res_avail = mysqli_query($conn, $sql_avail);
+        $assigned_room_id = null;
 
-            //Validates if guest already has records
-            $sql_is_guest_new = "SELECT guest_id FROM guest WHERE email = '$_POST[email_address]' LIMIT 1";
-            $has_new_guest = mysqli_query($conn,$sql_is_guest_new);
-            
-            $new_guest_id = "";
-            if(mysqli_num_rows($has_new_guest) > 0){
-              if ($row = mysqli_fetch_assoc($has_new_guest)) {
-              $new_guest_id = $row['guest_id'];
-              }
-            }
-
-            else{
-              $sql_guest = "INSERT INTO guest (first_name, last_name, email) 
-                            VALUES ('".$_POST['first_name']."', '".$_POST['last_name']."', '".$_POST['email_address']."')";
-                if (mysqli_query($conn, $sql_guest)) {
-                $new_guest_id = mysqli_insert_id($conn);
+        if ($res_avail) {
+            while ($room = mysqli_fetch_assoc($res_avail)) {
+                $r_id = $room['room_id'];
+                // Check if this specific room belongs to the category selected
+                $type_check = mysqli_query($conn, "SELECT room_type_id FROM room WHERE room_id = $r_id");
+                if ($type_row = mysqli_fetch_assoc($type_check)) {
+                    if ($type_row['room_type_id'] == $requested_type_id) {
+                        $assigned_room_id = $r_id;
+                        break;
+                    }
                 }
             }
+            while(mysqli_more_results($conn)) { mysqli_next_result($conn); } // Clear Procedure Buffer
+        }
 
-
-            
-            //creates the reservation using the new added guest id
-                $sql_res = "CALL make_reservation('$new_guest_id','$assigned_room_id','$_POST[start_date]','$_POST[end_date]','$_POST[contact_info]')";
-
-                $res_result = mysqli_query($conn, $sql_res);
-                if ($res_result) {
-                  $row = mysqli_fetch_assoc($res_result);
-                    $new_res_id = $row['reservation_id'];
-
-                    while(mysqli_more_results($conn)) {
-                    mysqli_next_result($conn);
-                    } 
-
-                    $sql_pay = "INSERT INTO payment (amount, reservation_id) 
-                                VALUES ('".$_POST['amount']."', '$new_res_id')";
-                    mysqli_query($conn, $sql_pay);
-
-                    $booking_message = "Reservation Requested! Your Reservation ID is: " . $new_res_id . ". Status: PENDING ADMIN CONFIRMATION";
-                    $booking_status = "success";
-                }
-            
-        } else {
-            $booking_message = "Sorry, no rooms of that type are currently available.";
+        // CHECK IF WE FOUND A ROOM BEFORE PROCEEDING
+        if (!$assigned_room_id) {
+            $booking_message = "Sorry, no rooms of this type are available for these dates.";
             $booking_status = "error";
+        } else {
+            // 4. Guest Handling (Find or Create)
+            $g_check = mysqli_query($conn, "SELECT guest_id FROM guest WHERE email = '$email' LIMIT 1");
+            if (mysqli_num_rows($g_check) > 0) {
+                $g_row = mysqli_fetch_assoc($g_check);
+                $guest_id = $g_row['guest_id'];
+            } else {
+                mysqli_query($conn, "INSERT INTO guest (first_name, last_name, email) VALUES ('$first_name', '$last_name', '$email')");
+                $guest_id = mysqli_insert_id($conn);
+            }
+
+            // 5. CALL THE RESERVATION PROCEDURE
+            $sql_res = "CALL make_reservation($guest_id, $assigned_room_id, '$start_date', '$end_date', '$contact')";
+            $res_call = mysqli_query($conn, $sql_res);
+
+            if ($res_call) {
+                $row = mysqli_fetch_assoc($res_call);
+
+                // Clear procedure results FIRST
+                while(mysqli_more_results($conn)) { 
+                    mysqli_next_result($conn); 
+                }
+
+                // Get the reservation_id from procedure
+                $new_res_id = isset($row['reservation_id']) ? (int)$row['reservation_id'] : 0;
+
+                // Check if reservation was successful (positive ID)
+                if ($new_res_id > 0) {
+                    // 6. Insert Payment - Reservation was created successfully
+                    $sql_pay = "INSERT INTO payment (amount, reservation_id) VALUES ('$amount', '$new_res_id')";
+                    
+                    if (mysqli_query($conn, $sql_pay)) {
+                        $booking_message = "Success! Your Reservation ID is: " . $new_res_id . ". Status: PENDING.";
+                        $booking_status = "success";
+                    } else {
+                        $booking_message = "Reservation created (#$new_res_id), but payment failed: " . mysqli_error($conn);
+                        $booking_status = "error";
+                    }
+                } 
+                elseif ($new_res_id == -1) {
+                    // Procedure returned -1: Room is already booked/overlapping
+                    $booking_message = "Sorry, this room is already booked for the selected dates. Please choose different dates or another room.";
+                    $booking_status = "error";
+                } 
+                else {
+                    // Unexpected response (0 or other)
+                    $booking_message = "Error: Unable to create reservation. Please try again or contact support.";
+                    $booking_status = "error";
+                }
+            } else {
+                $booking_message = "Database query failed: " . mysqli_error($conn);
+                $booking_status = "error";
+                
+                while(mysqli_more_results($conn)) { 
+                    mysqli_next_result($conn); 
+                }
+            }
         }
     }
 }
@@ -730,8 +768,8 @@ if (isset($_POST['SubmitBooking'])) {
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
   <script>
     const nav = document.querySelector(".navbar");
     window.addEventListener("scroll", () => {

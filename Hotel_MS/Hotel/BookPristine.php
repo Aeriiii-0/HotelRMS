@@ -5,7 +5,8 @@ $DBUser = "customer";
 $DBPass = "";
 $DBName = "hotel";
 
-$conn = mysqli_connect($DBHost,$DBUser,$DBPass,$DBName);
+$conn = mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
+
 // Check connection
 if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
@@ -21,65 +22,80 @@ if (isset($_POST['SubmitBooking'])) {
         $booking_message = "Please complete all fields.";
         $booking_status = "error";
     } else {
-        $sql_find_room = "SELECT room_id FROM room WHERE room_type_id = '".$_POST['room_type_id']."' AND vacancy_status = 'AVAILABLE' LIMIT 1";
+        // Sanitize inputs
+        $first_name = mysqli_real_escape_string($conn, $_POST['first_name']);
+        $last_name = mysqli_real_escape_string($conn, $_POST['last_name']);
+        $email = mysqli_real_escape_string($conn, $_POST['email_address']);
+        $start_date = mysqli_real_escape_string($conn, $_POST['start_date']);
+        $end_date = mysqli_real_escape_string($conn, $_POST['end_date']);
+        $contact = mysqli_real_escape_string($conn, $_POST['contact_info']);
+        $amount = mysqli_real_escape_string($conn, $_POST['amount']);
+        $requested_type_id = (int)$_POST['room_type_id'];
+
+        // Find an available room of the requested type
+        $sql_find_room = "SELECT room_id FROM room WHERE room_type_id = '$requested_type_id' AND vacancy_status = 'AVAILABLE' LIMIT 1";
         $room_result = mysqli_query($conn, $sql_find_room);
 
         if (mysqli_num_rows($room_result) > 0) {
             $room_data = mysqli_fetch_assoc($room_result);
             $assigned_room_id = $room_data['room_id'];
 
-            //Validates if guest already has records
-            $sql_is_guest_new = "SELECT guest_id FROM guest WHERE email = '$_POST[email_address]' LIMIT 1";
-            $has_new_guest = mysqli_query($conn,$sql_is_guest_new);
+            // Check if guest already exists
+            $sql_is_guest_new = "SELECT guest_id FROM guest WHERE email = '$email' LIMIT 1";
+            $has_new_guest = mysqli_query($conn, $sql_is_guest_new);
             
             $new_guest_id = "";
-            if(mysqli_num_rows($has_new_guest) > 0){
-              if ($row = mysqli_fetch_assoc($has_new_guest)) {
-              $new_guest_id = $row['guest_id'];
-              }
-            }
-
-            else{
-              $sql_guest = "INSERT INTO guest (first_name, last_name, email) 
-                            VALUES ('".$_POST['first_name']."', '".$_POST['last_name']."', '".$_POST['email_address']."')";
+            if (mysqli_num_rows($has_new_guest) > 0) {
+                $row = mysqli_fetch_assoc($has_new_guest);
+                $new_guest_id = $row['guest_id'];
+            } else {
+                // Create new guest
+                $sql_guest = "INSERT INTO guest (first_name, last_name, email) VALUES ('$first_name', '$last_name', '$email')";
                 if (mysqli_query($conn, $sql_guest)) {
-                $new_guest_id = mysqli_insert_id($conn);
+                    $new_guest_id = mysqli_insert_id($conn);
                 }
             }
 
+            // Call the reservation procedure
+            $sql_res = "CALL make_reservation('$new_guest_id', '$assigned_room_id', '$start_date', '$end_date', '$contact')";
+            $res_result = mysqli_query($conn, $sql_res);
 
-            
-            //creates the reservation using the new added guest id
-                // $sql_res = "INSERT INTO reservation (guest_id, room_id, start_date, end_date, contact_info, reservation_status) 
-                //             VALUES ('$new_guest_id', '$assigned_room_id', '".$_POST['start_date']."', '".$_POST['end_date']."', '".$_POST['contact_info']."', 'PENDING')";
+            if ($res_result) {
+                $row = mysqli_fetch_assoc($res_result);
                 
-                $sql_res = "CALL make_reservation('$new_guest_id','$assigned_room_id','$_POST[start_date]','$_POST[end_date]','$_POST[contact_info]')";
-
-                $res_result = mysqli_query($conn, $sql_res);
-                if ($res_result) {
-                  $row = mysqli_fetch_assoc($res_result);
-                  if (reset($row)== "ROOM NOT AVAILABLE DURING REQUESTED TIME"){
-                    $booking_message = "Sorry, no rooms of that type are currently available.";
-                  }
-                  else{
-  
-                  
-                  
-                  $new_res_id = $row['reservation_id'];
-
-                    while(mysqli_more_results($conn)) {
+                // Clear procedure buffer immediately
+                while (mysqli_more_results($conn)) {
                     mysqli_next_result($conn);
-                    } 
-
-                    $sql_pay = "INSERT INTO payment (amount, reservation_id) 
-                                VALUES ('".$_POST['amount']."', '$new_res_id')";
-                    mysqli_query($conn, $sql_pay);
-
-                    $booking_message = "Reservation Requested! Your Reservation ID is: " . $new_res_id . ". Status: PENDING ADMIN CONFIRMATION";
-                    $booking_status = "success";
-                  }
                 }
-            
+
+                // Get the reservation_id from the procedure
+                $new_res_id = isset($row['reservation_id']) ? (int)$row['reservation_id'] : 0;
+
+                // Check result
+                if ($new_res_id > 0) {
+                    // SUCCESS: Reservation created, now insert payment
+                    $sql_pay = "INSERT INTO payment (amount, reservation_id) VALUES ('$amount', '$new_res_id')";
+                    
+                    if (mysqli_query($conn, $sql_pay)) {
+                        $booking_message = "Reservation Requested! Your Reservation ID is: " . $new_res_id . ". Status: PENDING ADMIN CONFIRMATION";
+                        $booking_status = "success";
+                    } else {
+                        $booking_message = "Reservation created (#$new_res_id), but payment failed: " . mysqli_error($conn);
+                        $booking_status = "error";
+                    }
+                } elseif ($new_res_id == -1) {
+                    // FAILURE: Room is already booked during that time
+                    $booking_message = "Sorry, this room is already booked for the selected dates. Please choose different dates.";
+                    $booking_status = "error";
+                } else {
+                    // UNEXPECTED: Something went wrong
+                    $booking_message = "Error: Unable to create reservation. Please try again.";
+                    $booking_status = "error";
+                }
+            } else {
+                $booking_message = "Database error: " . mysqli_error($conn);
+                $booking_status = "error";
+            }
         } else {
             $booking_message = "Sorry, no rooms of that type are currently available.";
             $booking_status = "error";

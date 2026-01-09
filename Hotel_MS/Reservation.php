@@ -13,17 +13,26 @@
 <?php
 include("database.php");
 
-
 if (!$conn){
     die("Error connecting database.".mysqli_error($conn));
 }
 
+// ============================================================================
+// ADD RESERVATION
+// ============================================================================
 if (isset($_POST['InsertSub'])){
-    if($_POST['guest_id']=='' || $_POST['room_id']=='' || $_POST['start_date']=='' || $_POST['end_date']==''){
-        echo "<br><center>Fields are incomplete </center>";
+    if($_POST['guest_id']=='' || $_POST['room_id']=='' || $_POST['start_date']=='' || $_POST['end_date']=='' || $_POST['contact_info']==''){
+        echo "<br><center>Fields are incomplete</center>";
     }
     else{
-        $call_procedure = "CALL make_reservation(".$_POST['guest_id'].", ".$_POST['room_id'].", '".$_POST['start_date']."', '".$_POST['end_date']."')";
+        // FIXED: Escape inputs and add contact_info parameter
+        $guest_id = mysqli_real_escape_string($conn, $_POST['guest_id']);
+        $room_id = mysqli_real_escape_string($conn, $_POST['room_id']);
+        $start_date = mysqli_real_escape_string($conn, $_POST['start_date']);
+        $end_date = mysqli_real_escape_string($conn, $_POST['end_date']);
+        $contact_info = mysqli_real_escape_string($conn, $_POST['contact_info']);
+        
+        $call_procedure = "CALL make_reservation($guest_id, $room_id, '$start_date', '$end_date', '$contact_info')";
         $proc_result = mysqli_query($conn, $call_procedure);
         
         if($proc_result){
@@ -32,111 +41,107 @@ if (isset($_POST['InsertSub'])){
             if (isset($proc_data['message'])) {
                 echo "<br><center><span style='color: #E57373;'>".$proc_data['message']."</span></center>";
             } else if (isset($proc_data['reservation_id'])) {
-                echo "<br><center>Reservation Added. Reservation ID: ".$proc_data['reservation_id']."</center>";
+                echo "<br><center><span style='color: #81C784;'>Reservation Added. Reservation ID: ".$proc_data['reservation_id']."</span></center>";
             }
             
-            mysqli_next_result($conn);
+            // Clear stored procedure results
+            while(mysqli_more_results($conn)) {
+                mysqli_next_result($conn);
+            }
         }
     }
 }
 
+// ============================================================================
+// CONFIRM RESERVATION
+// ============================================================================
 if(isset($_POST['ConfirmSub'])){
     if($_POST['reservation_id']==''){
         echo "<br><center>Please enter Reservation ID</center>";
     }
     else{
-        $call_procedure = "CALL confirm_reservation(".$_POST['reservation_id'].")";
+        $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
+        $call_procedure = "CALL confirm_reservation($reservation_id)";
         $proc_result = mysqli_query($conn, $call_procedure);
         
         if($proc_result){
             $proc_data = mysqli_fetch_assoc($proc_result);
             
-            if (isset($proc_data['Message'])) {
-                echo "<br><center><span style='color: #81C784;'>".$proc_data['Message']."</span></center>";
-            } else if (isset($proc_data['Error'])) {
-                echo "<br><center><span style='color: #E57373;'>".$proc_data['Error']."</span></center>";
+            if (isset($proc_data['message'])) {
+                $color = (strpos($proc_data['message'], 'SUCCESS') !== false || strpos($proc_data['message'], 'CONFIRMED') !== false) ? '#81C784' : '#E57373';
+                echo "<br><center><span style='color: $color;'>".$proc_data['message']."</span></center>";
             }
             
-            mysqli_next_result($conn);
+            while(mysqli_more_results($conn)) {
+                mysqli_next_result($conn);
+            }
         }
     }
 }
 
+// ============================================================================
+// CHECK IN
+// ============================================================================
 if(isset($_POST['CheckInSub'])){
     if($_POST['reservation_id']==''){
         echo "<br><center>Please enter Reservation ID</center>";
     }
     else{
-        $call_procedure = "CALL check_in_reservation(".$_POST['reservation_id'].")";
+        $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
+        $call_procedure = "CALL check_in_reservation($reservation_id)";
         $proc_result = mysqli_query($conn, $call_procedure);
         
         if($proc_result){
             $proc_data = mysqli_fetch_assoc($proc_result);
             
             if (isset($proc_data['message'])) {
-                echo "<br><center><span style='color: #81C784;'>".$proc_data['message']."</span></center>";
-                
-                mysqli_next_result($conn);
-                $update_room = "UPDATE room r 
-                               JOIN reservation res ON r.room_id = res.room_id 
-                               SET r.vacancy_status = 'OCCUPIED' 
-                               WHERE res.reservation_id = ".$_POST['reservation_id'];
-                mysqli_query($conn, $update_room);
-                
-                $create_stay = "INSERT INTO stay (reservation_id, check_in) 
-                               VALUES (".$_POST['reservation_id'].", NOW())";
-                mysqli_query($conn, $create_stay);
-                
-            } else if (isset($proc_data['error'])) {
-                echo "<br><center><span style='color: #E57373;'>".$proc_data['error']."</span></center>";
+                $color = (strpos($proc_data['message'], 'SUCCESS') !== false || strpos($proc_data['message'], 'CHECKED IN') !== false) ? '#81C784' : '#E57373';
+                echo "<br><center><span style='color: $color;'>".$proc_data['message']."</span></center>";
             }
             
-            mysqli_next_result($conn);
+            while(mysqli_more_results($conn)) {
+                mysqli_next_result($conn);
+            }
+            
+            // REMOVED: Manual room update and stay creation - triggers handle this automatically!
         }
     }
 }
 
-if(isset($_POST['CheckOutSub'])){
-    if($_POST['reservation_id']==''){
-        echo "<br><center>Please enter Reservation ID</center>";
-    }
-    else{
-        $call_procedure = "CALL check_out_reservation(".$_POST['reservation_id'].")";
+// ============================================================================
+// CHECK OUT
+// ============================================================================
+if(isset($_POST['CheckInSub'])){
+    if($_POST['reservation_id'] != ''){
+        $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
+        $call_procedure = "CALL check_in_reservation($reservation_id)";
         $proc_result = mysqli_query($conn, $call_procedure);
         
         if($proc_result){
-            $proc_data = mysqli_fetch_assoc($proc_result);
-            
-            if (isset($proc_data['message'])) {
-                echo "<br><center><span style='color: #81C784;'>".$proc_data['message']."</span></center>";
-                
-                mysqli_next_result($conn);
-                $update_room = "UPDATE room r 
-                               JOIN reservation res ON r.room_id = res.room_id 
-                               SET r.vacancy_status = 'AVAILABLE' 
-                               WHERE res.reservation_id = ".$_POST['reservation_id'];
-                mysqli_query($conn, $update_room);
-                
-            } else if (isset($proc_data['error'])) {
-                echo "<br><center><span style='color: #E57373;'>".$proc_data['error']."</span></center>";
-            }
-            
-            mysqli_next_result($conn);
+            // Success! 
+            // Redirecting prevents "Double Submission" on Page Refresh
+            header("Location: " . $_SERVER['PHP_SELF'] . "?status=checkedin");
+            exit();
         }
     }
 }
 
+// ============================================================================
+// VIEW RESERVATIONS
+// ============================================================================
 if(isset($_POST['ViewSub'])){
     echo "<br> <center>";
     
+    $filter_status = '';
     if(!empty($_POST['filter_status'])){
+        $filter_status = mysqli_real_escape_string($conn, $_POST['filter_status']);
         $sql= "SELECT r.*, CONCAT(g.first_name, ' ', g.last_name) as guest_name, rm.room_number 
                FROM reservation r 
                LEFT JOIN guest g ON r.guest_id = g.guest_id 
                LEFT JOIN room rm ON r.room_id = rm.room_id 
-               WHERE r.reservation_status = '$_POST[filter_status]' 
+               WHERE r.reservation_status = '$filter_status' 
                ORDER BY r.reservation_id DESC";
-        echo "<h3>Showing: " . $_POST['filter_status'] . " reservations</h3>";
+        echo "<h3>Showing: $filter_status reservations</h3>";
     } else {
         $sql= "SELECT r.*, CONCAT(g.first_name, ' ', g.last_name) as guest_name, rm.room_number 
                FROM reservation r 
@@ -154,6 +159,7 @@ if(isset($_POST['ViewSub'])){
             <th>Res ID</th>
             <th>Guest Name</th>
             <th>Room #</th>
+            <th>Contact</th>
             <th>Start Date</th>
             <th>End Date</th>
             <th>Status</th>
@@ -164,12 +170,14 @@ if(isset($_POST['ViewSub'])){
                       data-resid='".$rows['reservation_id']."' 
                       data-guestid='".$rows['guest_id']."' 
                       data-roomid='".$rows['room_id']."' 
+                      data-contact='".$rows['contact_info']."' 
                       data-startdate='".$rows['start_date']."' 
                       data-enddate='".$rows['end_date']."' 
                       data-status='".$rows['reservation_status']."'>
                 <td>".$rows['reservation_id']."</td>
                 <td>".$rows['guest_name']."</td>
                 <td>Room ".$rows['room_number']."</td>
+                <td>".$rows['contact_info']."</td>
                 <td>".$rows['start_date']."</td>
                 <td>".$rows['end_date']."</td>
                 <td>".$rows['reservation_status']."</td>
@@ -182,17 +190,21 @@ if(isset($_POST['ViewSub'])){
     echo "</center>";
 }
 
+// ============================================================================
+// SEARCH RESERVATION
+// ============================================================================
 if(isset($_POST['SearchSub'])){
-    if(!preg_match("/^[ 0-9]+$/", $_POST['reservation_id'])){
-        echo "<br><center>No alphabetical values allowed </center>";
+    if(!preg_match("/^[0-9]+$/", $_POST['reservation_id'])){
+        echo "<br><center>Please enter a valid Reservation ID (numbers only)</center>";
     }
     else{
         echo "<center><br>";
+        $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
         $sql= "SELECT r.*, CONCAT(g.first_name, ' ', g.last_name) as guest_name, rm.room_number 
                FROM reservation r 
                LEFT JOIN guest g ON r.guest_id = g.guest_id 
                LEFT JOIN room rm ON r.room_id = rm.room_id 
-               WHERE r.reservation_id= '$_POST[reservation_id]'";
+               WHERE r.reservation_id= '$reservation_id'";
         $result= mysqli_query($conn,$sql);
 
         if(mysqli_num_rows($result) > 0){
@@ -201,6 +213,7 @@ if(isset($_POST['SearchSub'])){
                <th>Res ID</th>
                <th>Guest Name</th>
                <th>Room #</th>
+               <th>Contact</th>
                <th>Start</th>
                <th>End</th>
                <th>Status</th>
@@ -210,71 +223,118 @@ if(isset($_POST['SearchSub'])){
                           data-resid='".$rows['reservation_id']."' 
                           data-guestid='".$rows['guest_id']."' 
                           data-roomid='".$rows['room_id']."' 
+                          data-contact='".$rows['contact_info']."' 
                           data-startdate='".$rows['start_date']."' 
                           data-enddate='".$rows['end_date']."' 
                           data-status='".$rows['reservation_status']."'>
                      <td>".$rows['reservation_id']."</td>
                      <td>".$rows['guest_name']."</td>
                      <td>Room ".$rows['room_number']."</td>
+                     <td>".$rows['contact_info']."</td>
                      <td>".$rows['start_date']."</td>
                      <td>".$rows['end_date']."</td>
                      <td>".$rows['reservation_status']."</td>
                 </tr>";
             }
             echo "</table><br> Reservation Found.";
+        } else {
+            echo "<p style='color: #E57373;'>No reservation found with ID: $reservation_id</p>";
         }
         echo "</center>";
     }
 }
 
+// ============================================================================
+// EDIT RESERVATION
+// ============================================================================
 if(isset($_POST['EditSub'])){
-    if($_POST['reservation_id']==''){
+    if($_POST['reservation_id']=='' || $_POST['guest_id']=='' || $_POST['room_id']=='' || 
+       $_POST['start_date']=='' || $_POST['end_date']=='' || $_POST['contact_info']==''){
         echo "<center>Incomplete Fields.</center>";
     }
     else{
+        $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
+        $guest_id = mysqli_real_escape_string($conn, $_POST['guest_id']);
+        $room_id = mysqli_real_escape_string($conn, $_POST['room_id']);
+        $start_date = mysqli_real_escape_string($conn, $_POST['start_date']);
+        $end_date = mysqli_real_escape_string($conn, $_POST['end_date']);
+        $contact_info = mysqli_real_escape_string($conn, $_POST['contact_info']);
+        $status = mysqli_real_escape_string($conn, $_POST['reservation_status']);
+        
         $sql= "UPDATE reservation SET 
-               guest_id = '$_POST[guest_id]', 
-               room_id = '$_POST[room_id]', 
-               start_date = '$_POST[start_date]', 
-               end_date = '$_POST[end_date]', 
-               reservation_status = '$_POST[reservation_status]' 
-               WHERE reservation_id = '$_POST[reservation_id]'";
+               guest_id = '$guest_id', 
+               room_id = '$room_id', 
+               start_date = '$start_date', 
+               end_date = '$end_date',
+               contact_info = '$contact_info',
+               reservation_status = '$status' 
+               WHERE reservation_id = '$reservation_id'";
         
         $result= mysqli_query($conn, $sql);
         if($result){
-            echo"<br><center>Record Updated.</center>";
+            echo"<br><center><span style='color: #81C784;'>Record Updated.</span></center>";
+        } else {
+            echo"<br><center><span style='color: #E57373;'>Error updating record.</span></center>";
         }
     }
 }
 
+// ============================================================================
+// DELETE RESERVATION
+// ============================================================================
 if (isset($_POST['DeleteSub'])){
-     if($_POST['reservation_id']==''){
-        echo "<center>Incomplete Fields.</center>";
+    if($_POST['reservation_id']==''){
+        echo "<center>Please enter Reservation ID</center>";
     }
     else{
-        $sql="DELETE FROM reservation WHERE reservation_id = '$_POST[reservation_id]'";
+        $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
+        
+        // First delete related stay records
+        $delete_stay = "DELETE FROM stay WHERE reservation_id = '$reservation_id'";
+        mysqli_query($conn, $delete_stay);
+        
+        // Then delete payment records
+        $delete_payment = "DELETE FROM payment WHERE reservation_id = '$reservation_id'";
+        mysqli_query($conn, $delete_payment);
+        
+        // Finally delete reservation
+        $sql="DELETE FROM reservation WHERE reservation_id = '$reservation_id'";
         $result= mysqli_query($conn, $sql);
-        echo "<br><center>Record Deleted.</center>";
+        
+        if($result){
+            echo "<br><center><span style='color: #81C784;'>Record Deleted.</span></center>";
+        } else {
+            echo "<br><center><span style='color: #E57373;'>Error deleting record.</span></center>";
+        }
     }
 }
 
+// ============================================================================
+// CANCEL RESERVATION
+// ============================================================================
 if(isset($_POST['CancelSub'])){
     if($_POST['reservation_id']==''){
         echo "<center>Please enter Reservation ID</center>";
     }
     else{
+        $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
+        
+        // FIXED: Update triggers the room status change automatically
         $sql= "UPDATE reservation SET reservation_status = 'CANCELLED' 
-               WHERE reservation_id = '$_POST[reservation_id]'";
+               WHERE reservation_id = '$reservation_id'";
         
         $result= mysqli_query($conn, $sql);
         if($result){
-            echo"<br><center>Reservation Cancelled.</center>";
+            echo"<br><center><span style='color: #FFB74D;'>Reservation Cancelled.</span></center>";
+        } else {
+            echo"<br><center><span style='color: #E57373;'>Error cancelling reservation.</span></center>";
         }
     }
 }
 ?>
 
 <?php
+// Room availability query
 $room_sql = "SELECT 
     r.room_id,
     r.room_number,
@@ -296,6 +356,7 @@ ORDER BY r.room_number";
 
 $room_result = mysqli_query($conn, $room_sql);
 
+// Statistics query
 $stats_sql = "SELECT 
     SUM(CASE WHEN vacancy_status = 'OCCUPIED' THEN 1 ELSE 0 END) as checked_in,
     SUM(CASE WHEN vacancy_status = 'AVAILABLE' THEN 1 ELSE 0 END) as available,
@@ -315,65 +376,68 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
 
 <div style="display: flex; gap: 30px; max-width: 1400px; margin: 0 auto;">
     <div style="flex: 1;">
-<form action="" method="POST" id="reservationForm">
-    
-        <h2>Reservation Management</h2>
+        <form action="" method="POST" id="reservationForm">
+            
+            <h2>Reservation Management</h2>
 
-        <label>Reservation ID:</label> 
-        <input type="number" name="reservation_id" id="reservation_id"> <br> <br>
+            <label>Reservation ID:</label> 
+            <input type="number" name="reservation_id" id="reservation_id"> <br> <br>
 
-        <label>Guest ID:</label> 
-        <input type="number" name="guest_id" id="guest_id"> <br> <br>
+            <label>Guest ID:</label> 
+            <input type="number" name="guest_id" id="guest_id"> <br> <br>
 
-        <label>Room ID:</label> 
-        <input type="number" name="room_id" id="room_id"> <br> <br>
+            <label>Room ID:</label> 
+            <input type="number" name="room_id" id="room_id"> <br> <br>
 
-        <label>Start Date:</label> 
-        <input type="datetime-local" name="start_date" id="start_date"> <br> <br>
+            <label>Contact Info:</label> 
+            <input type="text" name="contact_info" id="contact_info" placeholder="09xxxxxxxxx" maxlength="11"> <br> <br>
 
-        <label>End Date:</label> 
-        <input type="datetime-local" name="end_date" id="end_date"> <br> <br>
+            <label>Start Date:</label> 
+            <input type="datetime-local" name="start_date" id="start_date"> <br> <br>
 
-        <center>
-        <label>Status:</label> 
-        <select name="reservation_status" id="reservation_status">
-            <option value="choose">Select Status</option>
-            <option value="PENDING">PENDING</option>
-            <option value="CONFIRMED">CONFIRMED</option>
-            <option value="CHECKED IN">CHECKED IN</option>
-            <option value="CHECKED OUT">CHECKED OUT</option>
-            <option value="CANCELLED">CANCELLED</option>
-        </select>
-        <br><br>
-        
-        
-        <div class="filter-section">
-            <label>Filter by Status:</label>
-            <select name="filter_status" id="filter_status">
-                <option value="">All Statuses</option>
+            <label>End Date:</label> 
+            <input type="datetime-local" name="end_date" id="end_date"> <br> <br>
+
+            <center>
+            <label>Status:</label> 
+            <select name="reservation_status" id="reservation_status">
+                <option value="choose">Select Status</option>
                 <option value="PENDING">PENDING</option>
                 <option value="CONFIRMED">CONFIRMED</option>
                 <option value="CHECKED IN">CHECKED IN</option>
                 <option value="CHECKED OUT">CHECKED OUT</option>
                 <option value="CANCELLED">CANCELLED</option>
             </select>
-        </div>
-        
-        <div class="btn-group">
-            <input type="submit" name="InsertSub" value="Add" class="btn insert">
-            <input type="submit" name="ConfirmSub" value="Confirm" class="btn update" style="background: #90CAF9;">
-            <input type="submit" name="CheckInSub" value="Check In" class="btn update" style="background: #A5D6A7;">
-            <input type="submit" name="CheckOutSub" value="Check Out" class="btn update" style="background: #FFCC80;">
-        </div>
-        <div class="btn-group" style="margin-top: 10px;">
-            <input type="submit" name="EditSub" value="Edit" class="btn update">
-            <input type="submit" name="ViewSub" value="View" class="btn view">
-            <input type="submit" name="SearchSub" value="Search" class="btn search">
-            <input type="submit" name="CancelSub" value="Cancel Res" class="btn delete" style="background: #EF9A9A;">
-            <input type="reset" name="ResetSub" value="Reset" class="btn reset">
-        </div>
-        </center>
-</form>
+            <br><br>
+            
+            
+            <div class="filter-section">
+                <label>Filter by Status:</label>
+                <select name="filter_status" id="filter_status">
+                    <option value="">All Statuses</option>
+                    <option value="PENDING">PENDING</option>
+                    <option value="CONFIRMED">CONFIRMED</option>
+                    <option value="CHECKED IN">CHECKED IN</option>
+                    <option value="CHECKED OUT">CHECKED OUT</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                </select>
+            </div>
+            
+            <div class="btn-group">
+                <input type="submit" name="InsertSub" value="Add" class="btn insert">
+                <input type="submit" name="ConfirmSub" value="Confirm" class="btn update" style="background: #90CAF9;">
+                <input type="submit" name="CheckInSub" value="Check In" class="btn update" style="background: #A5D6A7;">
+                <input type="submit" name="CheckOutSub" value="Check Out" class="btn update" style="background: #FFCC80;">
+            </div>
+            <div class="btn-group" style="margin-top: 10px;">
+                <input type="submit" name="EditSub" value="Edit" class="btn update">
+                <input type="submit" name="ViewSub" value="View" class="btn view">
+                <input type="submit" name="SearchSub" value="Search" class="btn search">
+                <input type="submit" name="CancelSub" value="Cancel Res" class="btn delete" style="background: #EF9A9A;">
+                <input type="reset" name="ResetSub" value="Reset" class="btn reset">
+            </div>
+            </center>
+        </form>
     </div>
 
     <div style="flex: 1;">
@@ -397,7 +461,7 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
                         echo "<td>ROOM " . $row['room_number'] . "</td>";
                         echo "<td>" . $row['room_type_name'] . "</td>";
                         echo "<td>" . ($row['guest_name'] ? $row['guest_name'] : 'N/A') . "</td>";
-                        echo "<td>" . ($row['check_in'] ? date('M d, g:iA', strtotime($row['check_in'])) : 'N/A') . "</td>";
+                        echo "<td>" . ($row['start_date'] ? date('M d, g:iA', strtotime($row['start_date'])) : 'N/A') . "</td>";
                         echo "<td>" . ($row['end_date'] ? date('M d, g:iA', strtotime($row['end_date'])) : 'N/A') . "</td>";
                         
                         if ($row['reservation_status'] == 'PENDING') {
@@ -456,6 +520,7 @@ function addRowClickListeners() {
             const resId = this.getAttribute('data-resid');
             const guestId = this.getAttribute('data-guestid');
             const roomId = this.getAttribute('data-roomid');
+            const contact = this.getAttribute('data-contact');
             const startDate = this.getAttribute('data-startdate');
             const endDate = this.getAttribute('data-enddate');
             const status = this.getAttribute('data-status');
@@ -463,6 +528,7 @@ function addRowClickListeners() {
             document.getElementById('reservation_id').value = resId;
             document.getElementById('guest_id').value = guestId;
             document.getElementById('room_id').value = roomId;
+            document.getElementById('contact_info').value = contact;
             
             if(startDate) {
                 document.getElementById('start_date').value = startDate.replace(' ', 'T').substring(0, 16);
