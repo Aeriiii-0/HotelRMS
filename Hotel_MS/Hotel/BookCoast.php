@@ -39,6 +39,7 @@ if (isset($_POST['SubmitBooking'])) {
         if (mysqli_num_rows($room_result) > 0) {
             $room_data = mysqli_fetch_assoc($room_result);
             $assigned_room_id = $room_data['room_id'];
+            if($_POST['start_date'] >= new DateTime() && $_POST['start_date']< $_POST['end_date']){
 
             // Check if guest already exists
             $sql_is_guest_new = "SELECT guest_id FROM guest WHERE email = '$email' LIMIT 1";
@@ -96,6 +97,10 @@ if (isset($_POST['SubmitBooking'])) {
                 $booking_message = "Database error: " . mysqli_error($conn);
                 $booking_status = "error";
             }
+            }
+            else{
+              $booking_message = "Sorry, the selected dates are not possible for this reservation.";
+          }
         } else {
             $booking_message = "Sorry, no rooms of that type are currently available.";
             $booking_status = "error";
