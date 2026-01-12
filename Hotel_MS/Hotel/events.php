@@ -67,6 +67,9 @@
     </style>
   </head>
   <body>
+
+   <?php include 'HomeNavbar.php'; ?>
+   
     <div class="image-container">
       <img src="images/grand-event.jpg" alt="Hotel Event" />
       <div class="overlay">

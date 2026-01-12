@@ -86,7 +86,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
 <nav class="navbar navbar-expand-lg navbar-custom">
   <div class="container-fluid">
-    <a class="navbar-brand" href="#">Pristine-Coast Hotel</a>
+    <a class="navbar-brand" href="#">Coast Whale Hotel</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
       <span class="navbar-toggler-icon"></span>
     </button>
@@ -114,7 +114,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
           <a class="nav-link <?php echo ($current_page == 'Staff.php') ? 'active' : ''; ?>" href="Staff.php">Staff</a>
         </li> -->
         <li class="nav-item">
-          <a class="nav-link <?php echo ($current_page == 'BookCoast.php') ? 'active' : ''; ?>" href="Hotel/BookCoast.php">
+          <a class="nav-link <?php echo ($current_page == 'ReservationForm.php') ? 'active' : ''; ?>" href="ReservationForm.php">
             Reservation Form
           </a>
         </li>

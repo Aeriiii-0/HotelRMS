@@ -63,7 +63,7 @@ if (isset($_POST['Maintenance'])) {
     while(mysqli_more_results($conn)) { mysqli_next_result($conn); }
 }
 
-// --- 4. MAIN QUERY: ONLY SHOW TODAY'S STATUS ---
+// --- 4. MAIN QUERY: SORTED BY STATUS (AVAILABLE, ARRIVING, IN HOUSE) ---
 $sql = "SELECT 
     r.room_id,
     r.room_number,
@@ -73,15 +73,20 @@ $sql = "SELECT
     res.end_date,
     CONCAT(g.first_name, ' ', g.last_name) as guest_name,
     res.check_in,
-    res.check_out
+    res.check_out,
+    CASE 
+        WHEN res.reservation_status IS NULL THEN 1
+        WHEN res.reservation_status IN ('CONFIRMED', 'PENDING') THEN 2
+        WHEN res.reservation_status = 'CHECKED IN' THEN 3
+        WHEN res.reservation_status = 'CHECKED OUT' THEN 2
+        ELSE 4
+    END as status_order
 FROM room r
 LEFT JOIN reservation res ON r.room_id = res.room_id 
-    -- Only pull reservations active TODAY
     AND CURDATE() BETWEEN DATE(res.start_date) AND DATE(res.end_date)
     AND res.reservation_status IN ('CHECKED IN', 'CONFIRMED')
 LEFT JOIN guest g ON res.guest_id = g.guest_id
--- LEFT JOIN stay s ON res.reservation_id = s.reservation_id AND s.check_out IS NULL
-ORDER BY r.room_number";
+ORDER BY status_order, r.room_number";
 
 $result = mysqli_query($conn, $sql);
 ?>

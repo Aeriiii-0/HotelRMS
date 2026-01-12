@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reservation</title>
-    <link rel="stylesheet" href="Style.css">
+    <link rel="stylesheet" href="Style.css?v=2.0">
+    <!-- Updated Pagination Version 2.0 - Clear Cache! -->
 </head>
 <body>
 
@@ -208,12 +209,54 @@ if(isset($_REQUEST['ViewSub']) || isset($_REQUEST['SearchSub']) || isset($_GET['
         echo "</table><br>";
 
         echo "<div class='pagination'>";
-
-for($i = 1; $i <= $total_pages; $i++){
-    $active_class = ($i == $current_page) ? "active" : "";
-    echo "<a href='?page=$i&reservation_id=$search_id&filter_status=$filter_status' class='$active_class'>$i</a>";
-}
-echo "</div><br>";
+        echo "\n";
+        
+        // Previous arrow
+        if ($current_page > 1) {
+            echo "<a href='?page=".($current_page - 1)."&reservation_id=$search_id&filter_status=$filter_status' class='pagination-arrow'>←</a>\n";
+        } else {
+            echo "<span class='pagination-arrow disabled'>←</span>\n";
+        }
+        
+        // Calculate which pages to show (3 buttons)
+        $start_page = max(1, $current_page - 1);
+        $end_page = min($total_pages, $start_page + 2);
+        
+        // Adjust if we're near the end
+        if ($end_page - $start_page < 2) {
+            $start_page = max(1, $end_page - 2);
+        }
+        
+        // Show first page if not in range
+        if ($start_page > 1) {
+            echo "<a href='?page=1&reservation_id=$search_id&filter_status=$filter_status'>1</a>\n";
+            if ($start_page > 2) {
+                echo "<span class='pagination-ellipsis'>...</span>\n";
+            }
+        }
+        
+        // Show the 3 page buttons
+        for($i = $start_page; $i <= $end_page; $i++){
+            $active_class = ($i == $current_page) ? "active" : "";
+            echo "<a href='?page=$i&reservation_id=$search_id&filter_status=$filter_status' class='$active_class'>$i</a>\n";
+        }
+        
+        // Show last page if not in range
+        if ($end_page < $total_pages) {
+            if ($end_page < $total_pages - 1) {
+                echo "<span class='pagination-ellipsis'>...</span>\n";
+            }
+            echo "<a href='?page=$total_pages&reservation_id=$search_id&filter_status=$filter_status'>$total_pages</a>\n";
+        }
+        
+        // Next arrow
+        if ($current_page < $total_pages) {
+            echo "<a href='?page=".($current_page + 1)."&reservation_id=$search_id&filter_status=$filter_status' class='pagination-arrow'>→</a>\n";
+        } else {
+            echo "<span class='pagination-arrow disabled'>→</span>\n";
+        }
+        
+        echo "</div><br>";
         echo "Total Records Found: $total_rows";
     } else {
         echo "<p style='color: #E57373;'>No records found matching your criteria.</p>";
@@ -353,7 +396,7 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
             </div>
             
             
-            <div class="btn-group" style="margin-top: 10px;">
+            <div class="btn-group-centered" style="margin-top: 10px;">
                 <input type="submit" name="ViewSub" value="View" class="btn view">
                 <input type="submit" name="SearchSub" value="Search" class="btn search">
             </div>

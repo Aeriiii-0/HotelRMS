@@ -114,15 +114,12 @@ if (isset($_POST['SubmitBooking'])) {
     }
 }
 ?>
-
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Book Pristine Hotel</title>
+  <title> Pristine Hotel</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -133,8 +130,8 @@ if (isset($_POST['SubmitBooking'])) {
 
   <nav class="navbar navbar-expand-lg fixed-top px-3">
     <a class="navbar-brand" href="hotel.php">
-      <img src="images/pristine-logo-removebg.png" alt="Pristine Hotel Logo" class="navbar-logo">
-      Pristine Hotel
+      <img src="images/coastwhale-logo-removebg.png" alt="Pristine Hotel Logo" class="navbar-logo">
+      Coast Whale Hotel
     </a>
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -397,14 +394,14 @@ if (isset($_POST['SubmitBooking'])) {
             <div class="row g-3 mb-3">
               <div class="col-md-6">
                 <div class="form-floating">
-                  <input type="date" class="form-control" id="startDate" name="start_date" placeholder="Check-in" required>
+                  <input type="datetime-local" class="form-control" id="startDate" name="start_date" placeholder="Check-in" required onchange="updateCheckoutMin()">
                   <label for="startDate">Check-in Date & Time</label>
                 </div>
               </div>
 
               <div class="col-md-6">
                 <div class="form-floating">
-                  <input type="datetime-local" class="form-control" id="endDate" name="end_date" placeholder="Check-out" required>
+                  <input type="datetime-local" class="form-control" id="endDate" name="end_date" placeholder="Check-out" required onchange="calculateTotalPrice()">
                   <label for="endDate">Check-out Date & Time</label>
                 </div>
               </div>

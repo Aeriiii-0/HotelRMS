@@ -134,6 +134,8 @@
     </style>
   </head>
   <body>
+
+  <?php include 'HomeNavbar.php'; ?>
     
     <img src="images/banner-1.png" alt="Luxury Hotel Exterior and Pool" class="hotel-image img-fluid ">
     

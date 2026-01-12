@@ -163,6 +163,7 @@ color: white;
 </head>
 <body>
 
+<?php include 'HomeNavbar.php'; ?>
 
     <div id="carouselExampleCaptions" class="carousel slide">
   <div class="carousel-indicators">
@@ -172,13 +173,13 @@ color: white;
   </div>
   <div class="carousel-inner">
     <div class="overlay">
-        <img src="images/whiteLogo.png" alt="">
-        <h5 class="txt-hotel">PRISTINE HOTEL</h5>
+        <img src="images/coastwhale-logo-removebg.png" alt="">
+        <h5 class="txt-hotel">COAST WHALE HOTEL</h5>
     </div>
     <div class="carousel-item active">
       <img src="images/pristineLobby.png" class="d-block w-100" alt="...">
       <div class="carousel-caption d-none d-md-block">
-        <h5>Welcome to Pristine Hotel</h5>
+        <h5>Welcome to Coast Whale Hotel</h5>
         <p>Experience timeless elegance and warm hospitality the moment you arrive.</p>
       </div>
     </div>
