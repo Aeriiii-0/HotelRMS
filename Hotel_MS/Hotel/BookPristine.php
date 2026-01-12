@@ -1,28 +1,26 @@
 <?php
-// Database connection
 $DBHost = "localhost";
-$DBUser = "customer";
-$DBPass = "";
+$DBUser = "root";
+$DBPass = "1234";
 $DBName = "hotel";
 
 $conn = mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
 
-// Check connection
 if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
 }
 
-// Handle form submission
 $booking_message = "";
 $booking_status = "";
+$payment_status = "";
 
 if (isset($_POST['SubmitBooking'])) {
     if (empty($_POST['first_name']) || empty($_POST['last_name']) || empty($_POST['contact_info']) || 
-        empty($_POST['start_date']) || empty($_POST['end_date']) || empty($_POST['amount']) || empty($_POST['email_address'])) {
+        empty($_POST['start_date']) || empty($_POST['end_date']) || empty($_POST['amount']) || 
+        empty($_POST['email_address']) || empty($_POST['room_quantity'])) {
         $booking_message = "Please complete all fields.";
         $booking_status = "error";
     } else {
-        // Sanitize inputs
         $first_name = mysqli_real_escape_string($conn, $_POST['first_name']);
         $last_name = mysqli_real_escape_string($conn, $_POST['last_name']);
         $email = mysqli_real_escape_string($conn, $_POST['email_address']);
@@ -31,79 +29,87 @@ if (isset($_POST['SubmitBooking'])) {
         $contact = mysqli_real_escape_string($conn, $_POST['contact_info']);
         $amount = mysqli_real_escape_string($conn, $_POST['amount']);
         $requested_type_id = (int)$_POST['room_type_id'];
+        $payment_method = 'GCASH';
+        $room_quantity = (int)$_POST['room_quantity'];
+        $adults = (int)$_POST['adults'];
 
-        // Find an available room of the requested type
-        $sql_find_room = "SELECT room_id FROM room WHERE room_type_id = '$requested_type_id' AND vacancy_status = 'AVAILABLE' LIMIT 1";
-        $room_result = mysqli_query($conn, $sql_find_room);
+        if ($adults < $room_quantity) {
+            $booking_message = "At least 1 adult is required per room. You selected $room_quantity room(s) but only have $adults adult(s).";
+            $booking_status = "error";
+        } else {
+            $sql_find_rooms = "SELECT r.room_id 
+                              FROM room r
+                              WHERE r.room_type_id = '$requested_type_id'
+                              AND r.room_id NOT IN (
+                                  SELECT room_id 
+                                  FROM reservation 
+                                  WHERE reservation_status NOT IN ('CANCELLED', 'CHECKED OUT')
+                                  AND (
+                                      (start_date <= '$end_date' AND end_date >= '$start_date')
+                                  )
+                              )
+                              LIMIT $room_quantity";
+            $room_result = mysqli_query($conn, $sql_find_rooms);
 
-        if (mysqli_num_rows($room_result) > 0) {
-            $room_data = mysqli_fetch_assoc($room_result);
-            $assigned_room_id = $room_data['room_id'];
-            if($_POST['start_date'] >= new DateTime() && $_POST['start_date']< $_POST['end_date']){
-
-            // Check if guest already exists
-            $sql_is_guest_new = "SELECT guest_id FROM guest WHERE email = '$email' LIMIT 1";
-            $has_new_guest = mysqli_query($conn, $sql_is_guest_new);
-            
-            $new_guest_id = "";
-            if (mysqli_num_rows($has_new_guest) > 0) {
-                $row = mysqli_fetch_assoc($has_new_guest);
-                $new_guest_id = $row['guest_id'];
-            } else {
-                // Create new guest
-                $sql_guest = "INSERT INTO guest (first_name, last_name, email) VALUES ('$first_name', '$last_name', '$email')";
-                if (mysqli_query($conn, $sql_guest)) {
-                    $new_guest_id = mysqli_insert_id($conn);
+            if (mysqli_num_rows($room_result) >= $room_quantity) {
+                $available_rooms = [];
+                while ($room_data = mysqli_fetch_assoc($room_result)) {
+                    $available_rooms[] = $room_data['room_id'];
                 }
-            }
-
-            // Call the reservation procedure
-            $sql_res = "CALL make_reservation('$new_guest_id', '$assigned_room_id', '$start_date', '$end_date', '$contact')";
-            $res_result = mysqli_query($conn, $sql_res);
-
-            if ($res_result) {
-                $row = mysqli_fetch_assoc($res_result);
                 
-                // Clear procedure buffer immediately
-                while (mysqli_more_results($conn)) {
-                    mysqli_next_result($conn);
-                }
-
-                // Get the reservation_id from the procedure
-                $new_res_id = isset($row['reservation_id']) ? (int)$row['reservation_id'] : 0;
-
-                // Check result
-                if ($new_res_id > 0) {
-                    // SUCCESS: Reservation created, now insert payment
-                    $sql_pay = "INSERT INTO payment (amount, reservation_id) VALUES ('$amount', '$new_res_id')";
+                $start_datetime = new DateTime($start_date);
+                $end_datetime = new DateTime($end_date);
+                $now = new DateTime();
+                
+                if($start_datetime >= $now && $start_datetime < $end_datetime){
+                    $sql_is_guest_new = "SELECT guest_id FROM guest WHERE email = '$email' LIMIT 1";
+                    $has_new_guest = mysqli_query($conn, $sql_is_guest_new);
                     
-                    if (mysqli_query($conn, $sql_pay)) {
-                        $booking_message = "Reservation Requested! Your Reservation ID is: " . $new_res_id . ". Status: PENDING ADMIN CONFIRMATION";
+                    $new_guest_id = "";
+                    if (mysqli_num_rows($has_new_guest) > 0) {
+                        $row = mysqli_fetch_assoc($has_new_guest);
+                        $new_guest_id = $row['guest_id'];
+                    } else {
+                        $sql_guest = "INSERT INTO guest (first_name, last_name, email) VALUES ('$first_name', '$last_name', '$email')";
+                        if (mysqli_query($conn, $sql_guest)) {
+                            $new_guest_id = mysqli_insert_id($conn);
+                        }
+                    }
+
+                    $reservation_status = 'CONFIRMED';
+                    $all_reservations = [];
+                    $amount_per_room = $amount / $room_quantity;
+                    
+                    foreach ($available_rooms as $assigned_room_id) {
+                        $sql_reservation = "INSERT INTO reservation (guest_id, room_id, contact_info, start_date, end_date, reservation_status) 
+                                           VALUES ('$new_guest_id', '$assigned_room_id', '$contact', '$start_date', '$end_date', '$reservation_status')";
+                        
+                        if (mysqli_query($conn, $sql_reservation)) {
+                            $new_res_id = mysqli_insert_id($conn);
+                            $all_reservations[] = $new_res_id;
+                            
+                            $sql_pay = "INSERT INTO payment (amount, reservation_id, payment_method) VALUES ('$amount_per_room', '$new_res_id', '$payment_method')";
+                            mysqli_query($conn, $sql_pay);
+                        }
+                    }
+                    
+                    if (count($all_reservations) == $room_quantity) {
+                        $payment_status = "PAID";
+                        $booking_message = "Reservation Confirmed! Your Reservation IDs are: " . implode(', ', $all_reservations) . ". Payment Status: PAID via GCash";
                         $booking_status = "success";
                     } else {
-                        $booking_message = "Reservation created (#$new_res_id), but payment failed: " . mysqli_error($conn);
+                        $booking_message = "Error creating all reservations. Please try again.";
                         $booking_status = "error";
                     }
-                } elseif ($new_res_id == -1) {
-                    // FAILURE: Room is already booked during that time
-                    $booking_message = "Sorry, this room is already booked for the selected dates. Please choose different dates.";
-                    $booking_status = "error";
                 } else {
-                    // UNEXPECTED: Something went wrong
-                    $booking_message = "Error: Unable to create reservation. Please try again.";
+                    $booking_message = "Sorry, the selected dates are not valid for this reservation.";
                     $booking_status = "error";
                 }
             } else {
-                $booking_message = "Database error: " . mysqli_error($conn);
+                $available_count = mysqli_num_rows($room_result);
+                $booking_message = "Sorry, only $available_count room(s) of that type are available for the selected dates. You requested $room_quantity room(s).";
                 $booking_status = "error";
             }
-          }
-          else{
-            $booking_message = "Sorry, the selected dates are not possible for this reservation.";
-          }
-        } else {
-            $booking_message = "Sorry, no rooms of that type are currently available.";
-            $booking_status = "error";
         }
     }
 }
@@ -119,438 +125,8 @@ if (isset($_POST['SubmitBooking'])) {
   <title>Book Pristine Hotel</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      background: #ffffff;
-      font-family: 'Inter', sans-serif;
-      color: #1a1a1a;
-    }
-
-    .navbar {
-      background: transparent;
-      padding: 0.5rem 2rem;
-      transition: all 0.3s ease;
-    }
-
-    .navbar-logo {
-      height: 80px;        
-      width: auto;         
-      margin-right: 10px;   
-      vertical-align: middle;
-    }
-
-    .navbar-scrolled {
-      background: rgba(255, 255, 255, 0.98);
-      box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
-    }
-
-    .navbar-brand {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #1a1a1a !important;
-      letter-spacing: 0.5px;
-    }
-
-    .nav-link {
-      color:#1a1a1a !important;
-      font-weight: 500;
-      padding: 0.5rem 1rem !important;
-      transition: color 0.3s ease;
-      position: relative;
-      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
-    }
-
-    .nav-link::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      width: 0;
-      height: 2px;
-      background: #1a1a1a;
-      transition: all 0.3s ease;
-      transform: translateX(-50%);
-    }
-
-    .nav-link:hover {
-      color: #666 !important;
-    }
-
-    .nav-link:hover::after {
-      width: 80%;
-    }
-
-    .dropdown-menu {
-      background: #ffffff;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      padding: 0.5rem;
-    }
-
-    .dropdown-item {
-      color: #1a1a1a;
-      padding: 0.7rem 1rem;
-      border-radius: 6px;
-      transition: all 0.2s ease;
-    }
-
-    .dropdown-item:hover {
-      background: #f5f5f5;
-      color: #1a1a1a;
-    }
-
-    .dropdown:hover .dropdown-menu {
-      display: block;
-    }
-
-    .dropdown-menu {
-      margin-top: 0;
-    }
-
-    .hero-section {
-      height: 85vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      background: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)),
-                  url('images/hero-pristine.jpg');
-
-      background-size: cover;
-      background-position: center;
-    }
-
-    .hero-content {
-      text-align: center;
-      color: white;
-    }
-
-    .hero-content h1 {
-      font-size: 4rem;
-      font-weight: 600;
-      margin-bottom: 1rem;
-      letter-spacing: -1px;
-    }
-
-    .hero-content p {
-      font-size: 1.3rem;
-      font-weight: 300;
-      letter-spacing: 2px;
-    }
-
-    .booking-section {
-      padding: 3rem 0;
-      background: #fafafa;
-    }
-
-    .booking-bar {
-      background: #ffffff;
-      padding: 2rem;
-      border-radius: 16px;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-    }
-
-    .form-label {
-      color: #666;
-      font-weight: 600;
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 0.6rem;
-    }
-
-    .form-control, .form-select {
-      background: #f8f8f8;
-      border: 1px solid #e0e0e0;
-      color: #1a1a1a;
-      border-radius: 8px;
-      padding: 0.75rem;
-      transition: all 0.2s ease;
-    }
-
-    .form-control:focus, .form-select:focus {
-      background: #ffffff;
-      border-color: #1a1a1a;
-      box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
-      color: #1a1a1a;
-    }
-
-    .btn-primary {
-      background: #1a1a1a;
-      border: none;
-      padding: 0.75rem 2rem;
-      font-weight: 600;
-      border-radius: 8px;
-      transition: all 0.2s ease;
-    }
-
-    .btn-primary:hover {
-      background: #333;
-      transform: translateY(-1px);
-    }
-
-    .rooms-section {
-      padding: 5rem 0;
-      background: #ffffff;
-    }
-
-    .section-title {
-      font-size: 2.5rem;
-      font-weight: 600;
-      text-align: center;
-      margin-bottom: 3rem;
-      color: #1a1a1a;
-      letter-spacing: -0.5px;
-    }
-
-    .room-card {
-      background: #ffffff;
-      border: 1px solid #e0e0e0;
-      border-radius: 12px;
-      overflow: hidden;
-      transition: all 0.3s ease;
-      height: 100%;
-    }
-
-    .room-card:hover {
-      transform: translateY(-8px);
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
-    }
-
-    .room-card img {
-      height: 260px;
-      object-fit: cover;
-      transition: transform 0.3s ease;
-    }
-
-    .room-image-wrapper {
-      position: relative;
-      overflow: hidden;
-      height: 260px;
-    }
-
-    .room-badge {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: linear-gradient(135deg, #000000, #000000); 
-      color: white;
-      padding: 0.5rem 1.2rem;
-      border-radius: 50px;
-      font-weight: 600;
-      font-size: 0.85rem;
-      z-index: 2;
-      box-shadow: 0 5px 20px rgba(20, 20, 20, 0.4);
-      letter-spacing: 0.5px;
-    }
-
-    .room-card:hover img {
-      transform: scale(1.05);
-    }
-
-    .card-body {
-      padding: 1.5rem;
-    }
-
-    .card-title {
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: #1a1a1a;
-      margin-bottom: 0.5rem;
-    }
-
-    .room-features {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-      flex-wrap: wrap;
-    }
-
-    .room-feature {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: #64748b;
-      font-size: 0.9rem;
-      font-weight: 500;
-    }
-
-    .room-feature::before {
-      content: '✓';
-      color: #1a1a1a;
-      font-weight: 700;
-      font-size: 1.1rem;
-    }
-
-    .card-text {
-      font-size: 1.3rem;
-      font-weight: 600;
-      color: #1a1a1a;
-      margin-bottom: 1.2rem;
-    }
-
-    .card-text span {
-      font-size: 0.9rem;
-      color: #666;
-      font-weight: 400;
-    }
-
-    .book-btn {
-      background: #1a1a1a;
-      border: none;
-      color: #ffffff;
-      padding: 0.7rem 1.5rem;
-      border-radius: 8px;
-      font-weight: 600;
-      transition: all 0.2s ease;
-    }
-
-    .book-btn:hover {
-      background: #333;
-      transform: translateY(-2px);
-    }
-
-    .modal-content {
-      border: none;
-      border-radius: 16px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-    }
-
-    .modal-header {
-      background: #1a1a1a;
-      color: white;
-      border-radius: 16px 16px 0 0;
-      padding: 1.5rem;
-    }
-
-    .modal-title {
-      font-size: 1.5rem;
-      font-weight: 600;
-    }
-
-    .modal-body {
-      padding: 2rem;
-    }
-
-    .text-primary {
-      color: #1a1a1a !important;
-    }
-
-    .text-success {
-      color: #10b981 !important;
-    }
-
-    .btn-success {
-      background: #10b981;
-      border: none;
-      padding: 0.75rem 2rem;
-      font-weight: 600;
-      border-radius: 8px;
-      transition: all 0.2s ease;
-    }
-
-    .btn-success:hover {
-      background: #059669;
-      transform: translateY(-1px);
-    }
-
-    /* FLOATING LABEL STYLES */
-    .form-floating {
-      position: relative;
-    }
-
-    .form-floating > .form-control,
-    .form-floating > .form-select {
-      padding: 1rem 0.75rem;
-      height: calc(3.5rem + 2px);
-    }
-
-    .form-floating > label {
-      position: absolute;
-      top: 0;
-      left: 0;
-      height: 100%;
-      padding: 1rem 0.75rem;
-      pointer-events: none;
-      border: 1px solid transparent;
-      transform-origin: 0 0;
-      transition: opacity 0.1s ease-in-out, transform 0.1s ease-in-out;
-      color: #666;
-      font-weight: 400;
-      font-size: 1rem;
-      text-transform: none;
-      letter-spacing: normal;
-    }
-
-    .form-floating > .form-control:focus ~ label,
-    .form-floating > .form-control:not(:placeholder-shown) ~ label,
-    .form-floating > .form-select:focus ~ label,
-    .form-floating > .form-select ~ label {
-      opacity: 0.65;
-      transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
-      color: #1a1a1a;
-      font-weight: 500;
-    }
-
-    .form-floating > .form-control:focus,
-    .form-floating > .form-select:focus {
-      padding-top: 1.625rem;
-      padding-bottom: 0.625rem;
-    }
-
-    .form-floating > .form-control:not(:placeholder-shown),
-    .form-floating > .form-select {
-      padding-top: 1.625rem;
-      padding-bottom: 0.625rem;
-    }
-
-    .alert {
-      border-radius: 12px;
-      padding: 1.2rem;
-      margin-bottom: 2rem;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-
-    .alert-success {
-      background: #d1fae5;
-      color: #065f46;
-      border: 1px solid #10b981;
-    }
-
-    .alert-danger {
-      background: #fee2e2;
-      color: #991b1b;
-      border: 1px solid #ef4444;
-    }
-
-    @media (max-width: 768px) {
-      .hero-content h1 {
-        font-size: 2.5rem;
-      }
-
-      .hero-content p {
-        font-size: 1.1rem;
-      }
-
-      .section-title {
-        font-size: 2rem;
-      }
-
-      .hero-section {
-        height: 70vh;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="Style.css">
 </head>
 
 <body>
@@ -588,7 +164,37 @@ if (isset($_POST['SubmitBooking'])) {
     </div>
   </div>
 
-
+  <div class="booking-section">
+    <div class="container">
+      <div class="booking-bar">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-2">
+            <label class="form-label">Check-in</label>
+            <input type="date" class="form-control" id="searchCheckin">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Check-out</label>
+            <input type="date" class="form-control" id="searchCheckout">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label" style="font-size: 0.7rem; margin-bottom: 0.2rem;">Adults</label>
+            <input type="number" class="form-control" id="searchAdults" placeholder="1" min="1" value="1">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label" style="font-size: 0.7rem; margin-bottom: 0.2rem;">Children</label>
+            <input type="number" class="form-control" id="searchChildren" placeholder="0" min="0" value="0">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label" style="font-size: 0.7rem; margin-bottom: 0.2rem;">Rooms</label>
+            <input type="number" class="form-control" id="searchRooms" placeholder="1" min="1" value="1">
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-primary w-100" onclick="filterRoomsByGuests()">Search</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="rooms-section" id="rooms">
     <div class="container">
@@ -597,72 +203,144 @@ if (isset($_POST['SubmitBooking'])) {
         <div class="alert <?php echo $booking_status == 'success' ? 'alert-success' : 'alert-danger'; ?>" role="alert">
           <strong><?php echo $booking_status == 'success' ? '✓ Success!' : '✗ Error:'; ?></strong> 
           <?php echo $booking_message; ?>
+          <?php if ($payment_status): ?>
+            <span class="payment-status <?php echo $payment_status == 'PAID' ? 'payment-paid' : 'payment-pending'; ?>">
+              <?php echo $payment_status; ?>
+            </span>
+          <?php endif; ?>
         </div>
       <?php endif; ?>
       
       <h2 class="section-title">Available Rooms</h2>
 
-      <div class="row g-4">
+      <div class="row g-4" id="roomsContainer">
 
-        <div class="col-lg-4 col-md-6">
+        <div class="col-lg-4 col-md-6 room-item" data-capacity="3">
           <div class="card room-card">
             <div class="room-image-wrapper">
-            <span class="room-badge">Popular</span>
-            <img src="images/room1-pristine.jpeg" class="card-img-top" alt="SINGLE">
+              <span class="room-badge">Cozy</span>
+              <img src="images/room1-pristine.jpeg" class="card-img-top" alt="Standard Single">
             </div>
             <div class="card-body">
-              <h5 class="card-title">SINGLE</h5>
+              <h5 class="card-title">Standard Single</h5>
               <div class="room-features">
-                <span class="room-feature">1 Guest</span>
+                <span class="room-feature">Up to 3 Guests</span>
                 <span class="room-feature">City View</span>
                 <span class="room-feature">WiFi</span>
               </div>
-              <p class="card-text">₱1,700 <span>/ night</span></p>
-              <button class="btn book-btn w-100" data-room="SINGLE" data-price="1700" data-room-id="1">
+              <p class="card-text">₱1,500 <span>/ night</span></p>
+              <button class="btn book-btn w-100" data-room="Standard Single" data-price="1500" data-room-id="1">
                 Book Now
               </button>
             </div>
           </div>
         </div>
 
-        <div class="col-lg-4 col-md-6">
+        <div class="col-lg-4 col-md-6 room-item" data-capacity="5">
           <div class="card room-card">
-            <img src="images/room2-pristine.jpg" class="card-img-top" alt="DOUBLE">
+            <div class="room-image-wrapper">
+              <span class="room-badge">Popular</span>
+              <img src="images/room2-pristine.jpg" class="card-img-top" alt="Standard Double">
+            </div>
             <div class="card-body">
-              <h5 class="card-title">DOUBLE</h5>
+              <h5 class="card-title">Standard Double</h5>
               <div class="room-features">
-                <span class="room-feature">2 Guests</span>
+                <span class="room-feature">Up to 5 Guests</span>
                 <span class="room-feature">Balcony</span>
                 <span class="room-feature">WiFi</span>
               </div>
-              <p class="card-text">₱2,300 <span>/ night</span></p>
-              <button class="btn book-btn w-100" data-room="DOUBLE" data-price="2300" data-room-id="2">
+              <p class="card-text">₱2,500 <span>/ night</span></p>
+              <button class="btn book-btn w-100" data-room="Standard Double" data-price="2500" data-room-id="2">
                 Book Now
               </button>
             </div>
           </div>
         </div>
 
-        <div class="col-lg-4 col-md-6">
+        <div class="col-lg-4 col-md-6 room-item" data-capacity="7">
           <div class="card room-card">
             <div class="room-image-wrapper">
-            <span class="room-badge">Best Value</span>
-            <img src="images/room3-pristine.jpg" class="card-img-top" alt="SUITE">
+              <span class="room-badge">Premium</span>
+              <img src="images/room3-pristine.jpg" class="card-img-top" alt="Deluxe King">
             </div>
             <div class="card-body">
-              <h5 class="card-title">SUITE</h5>
+              <h5 class="card-title">Deluxe King</h5>
               <div class="room-features">
-                <span class="room-feature">4 Guests</span>
+                <span class="room-feature">Up to 7 Guests</span>
                 <span class="room-feature">Sea View</span>
-                <span class="room-feature">WiFi</span>
+                <span class="room-feature">Premium WiFi</span>
               </div>
-              <p class="card-text">₱3,500 <span>/ night</span></p>
-              <button class="btn book-btn w-100" data-room="SUITE" data-price="3500" data-room-id="3">
+              <p class="card-text">₱4,500 <span>/ night</span></p>
+              <button class="btn book-btn w-100" data-room="Deluxe King" data-price="4500" data-room-id="3">
                 Book Now
               </button>
             </div>
           </div>
         </div>
+
+        <div class="col-lg-4 col-md-6 room-item" data-capacity="10">
+          <div class="card room-card">
+            <div class="room-image-wrapper">
+              <span class="room-badge">Luxury</span>
+              <img src="images/room1-pristine.jpeg" class="card-img-top" alt="Junior Suite">
+            </div>
+            <div class="card-body">
+              <h5 class="card-title">Junior Suite</h5>
+              <div class="room-features">
+                <span class="room-feature">Up to 10 Guests</span>
+                <span class="room-feature">Living Area</span>
+                <span class="room-feature">Mini Bar</span>
+              </div>
+              <p class="card-text">₱7,000 <span>/ night</span></p>
+              <button class="btn book-btn w-100" data-room="Junior Suite" data-price="7000" data-room-id="4">
+                Book Now
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6 room-item" data-capacity="12">
+          <div class="card room-card">
+            <div class="room-image-wrapper">
+              <span class="room-badge">Executive</span>
+              <img src="images/room2-pristine.jpg" class="card-img-top" alt="Executive Suite">
+            </div>
+            <div class="card-body">
+              <h5 class="card-title">Executive Suite</h5>
+              <div class="room-features">
+                <span class="room-feature">Up to 12 Guests</span>
+                <span class="room-feature">Ocean View</span>
+                <span class="room-feature">Jacuzzi</span>
+              </div>
+              <p class="card-text">₱12,000 <span>/ night</span></p>
+              <button class="btn book-btn w-100" data-room="Executive Suite" data-price="12000" data-room-id="5">
+                Book Now
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6 room-item" data-capacity="15">
+          <div class="card room-card">
+            <div class="room-image-wrapper">
+              <span class="room-badge">Presidential</span>
+              <img src="images/room3-pristine.jpg" class="card-img-top" alt="Presidential Suite">
+            </div>
+            <div class="card-body">
+              <h5 class="card-title">Presidential Suite</h5>
+              <div class="room-features">
+                <span class="room-feature">Up to 15 Guests</span>
+                <span class="room-feature">Penthouse</span>
+                <span class="room-feature">Butler Service</span>
+              </div>
+              <p class="card-text">₱25,000 <span>/ night</span></p>
+              <button class="btn book-btn w-100" data-room="Presidential Suite" data-price="25000" data-room-id="6">
+                Book Now
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -677,10 +355,14 @@ if (isset($_POST['SubmitBooking'])) {
 
         <div class="modal-body">
           <p class="fw-bold mb-2">Selected Room: <span id="modalRoom" class="text-primary"></span></p>
-          <p class="fw-bold mb-4">Price: <span id="modalPrice" class="text-success"></span> / night</p>
+          <p class="fw-bold mb-2">Room Quantity: <span id="modalRoomQuantity" class="text-primary">1</span></p>
+          <p class="fw-bold mb-2">Number of Nights: <span id="modalNights" class="text-primary">1</span></p>
+          <p class="fw-bold mb-4">Total Price: <span id="modalPrice" class="text-success"></span></p>
 
           <form method="POST" id="bookingForm">
             <input type="hidden" name="room_type_id" id="roomTypeId">
+            <input type="hidden" name="room_quantity" id="roomQuantityHidden" value="1">
+            <input type="hidden" name="adults" id="adultsHidden" value="1">
             
             <h6 class="fw-bold mb-3">Personal Information</h6>
             
@@ -701,7 +383,7 @@ if (isset($_POST['SubmitBooking'])) {
             </div>
 
             <div class="form-floating mb-3">
-              <input type="email" class="form-control" id="emailAddress" name="email_address" placeholder="juan@gmail.com">
+              <input type="email" class="form-control" id="emailAddress" name="email_address" placeholder="juan@gmail.com" required>
               <label for="emailAddress">Email Address</label>
             </div>
 
@@ -722,18 +404,30 @@ if (isset($_POST['SubmitBooking'])) {
 
               <div class="col-md-6">
                 <div class="form-floating">
-                  <input type="date" class="form-control" id="endDate" name="end_date" placeholder="Check-out" required>
+                  <input type="datetime-local" class="form-control" id="endDate" name="end_date" placeholder="Check-out" required>
                   <label for="endDate">Check-out Date & Time</label>
                 </div>
               </div>
             </div>
 
-            <div class="form-floating mb-4">
-              <input type="number" class="form-control" id="downpayment" name="amount" placeholder="0.00" min="0" step="0.01" required>
-              <label for="downpayment">Downpayment Amount (₱)</label>
+            <h6 class="fw-bold mb-3">Payment Information</h6>
+
+            <div class="alert alert-info mb-3" style="background: #e0f2fe; color: #0c4a6e; border: 1px solid #7dd3fc;">
+              <strong>💳 Payment Method:</strong> GCash Only
             </div>
 
-            <button type="submit" name="SubmitBooking" class="btn btn-success w-100">Confirm Booking</button>
+            <div class="form-floating mb-4">
+              <input type="number" class="form-control" id="downpayment" name="amount" placeholder="0.00" min="0" step="0.01" required readonly>
+              <label for="downpayment">Total Amount (₱)</label>
+            </div>
+
+            <div class="d-grid gap-2 mb-3">
+              <button type="button" class="btn btn-primary w-100" style="background: #007bff; border: none; padding: 0.9rem; font-size: 1.1rem; font-weight: 600;" onclick="handleGCashPayment()">
+                💳 Pay with GCash
+              </button>
+            </div>
+
+            <button type="submit" name="SubmitBooking" class="btn btn-success w-100" style="display: none;" id="actualSubmitBtn">Confirm Booking</button>
           </form>
         </div>
       </div>
@@ -748,24 +442,237 @@ if (isset($_POST['SubmitBooking'])) {
       nav.classList.toggle("navbar-scrolled", window.scrollY > 50);
     });
 
+    let currentPricePerNight = 0;
+
+    function setMinDates() {
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      
+      document.getElementById('searchCheckin').min = todayStr;
+      document.getElementById('startDate').min = today.toISOString().slice(0, 16);
+    }
+
+    setMinDates();
+
+    document.getElementById('searchCheckin').addEventListener('change', function() {
+      const checkinDate = new Date(this.value);
+      const nextDay = new Date(checkinDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      
+      const minCheckout = nextDay.toISOString().split('T')[0];
+      document.getElementById('searchCheckout').min = minCheckout;
+      
+      if (this.value && document.getElementById('searchCheckout').value < minCheckout) {
+        document.getElementById('searchCheckout').value = minCheckout;
+      }
+    });
+
+    function updateCheckoutMin() {
+      const checkinValue = document.getElementById('startDate').value;
+      if (!checkinValue) return;
+      
+      const checkin = new Date(checkinValue);
+      const minCheckout = new Date(checkin);
+      minCheckout.setDate(minCheckout.getDate() + 1);
+      minCheckout.setHours(14, 0, 0, 0);
+      
+      const minCheckoutStr = minCheckout.toISOString().slice(0, 16);
+      document.getElementById('endDate').min = minCheckoutStr;
+      
+      const currentCheckout = document.getElementById('endDate').value;
+      if (currentCheckout && new Date(currentCheckout) < minCheckout) {
+        document.getElementById('endDate').value = minCheckoutStr;
+      }
+      
+      calculateTotalPrice();
+    }
+
+    document.getElementById('searchRooms').addEventListener('input', function() {
+      const rooms = parseInt(this.value) || 1;
+      const adultsField = document.getElementById('searchAdults');
+      const currentAdults = parseInt(adultsField.value) || 1;
+      
+      if (currentAdults < rooms) {
+        adultsField.value = rooms;
+      }
+    });
+
+    function setDefaultDateTime() {
+      const searchCheckin = document.getElementById('searchCheckin').value;
+      const searchCheckout = document.getElementById('searchCheckout').value;
+      
+      let checkinDate, checkoutDate;
+      
+      if (searchCheckin && searchCheckout) {
+        checkinDate = searchCheckin + 'T11:00';
+        checkoutDate = searchCheckout + 'T14:00';
+      } else {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        checkinDate = today.toISOString().slice(0, 10) + 'T11:00';
+        checkoutDate = tomorrow.toISOString().slice(0, 10) + 'T14:00';
+      }
+
+      document.getElementById('startDate').value = checkinDate;
+      document.getElementById('endDate').value = checkoutDate;
+      
+      updateCheckoutMin();
+    }
+
+    function calculateNights() {
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      
+      if (!startDate || !endDate) return 1;
+      
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays > 0 ? diffDays : 1;
+    }
+
+    function calculateTotalPrice() {
+      const roomQuantity = parseInt(document.getElementById('roomQuantityHidden').value) || 1;
+      const nights = calculateNights();
+      const totalPrice = currentPricePerNight * roomQuantity * nights;
+      
+      document.getElementById('modalNights').textContent = nights;
+      document.getElementById('modalPrice').textContent = "₱" + totalPrice.toLocaleString();
+      document.getElementById('downpayment').value = totalPrice;
+    }
+
+    function filterRoomsByGuests() {
+      const adults = parseInt(document.getElementById('searchAdults').value) || 0;
+      const children = parseInt(document.getElementById('searchChildren').value) || 0;
+      const rooms = parseInt(document.getElementById('searchRooms').value) || 1;
+      const totalGuests = adults + children;
+      const totalCapacityNeeded = totalGuests;
+
+      const roomItems = document.querySelectorAll('.room-item');
+      let hasVisibleRooms = false;
+
+      roomItems.forEach(item => {
+        const itemCapacity = parseInt(item.dataset.capacity);
+        const badge = item.querySelector('.room-badge');
+        
+        if (badge.classList.contains('recommended-badge')) {
+          badge.classList.remove('recommended-badge');
+          badge.textContent = badge.dataset.originalText || badge.textContent;
+        } else {
+          badge.dataset.originalText = badge.textContent;
+        }
+
+        const totalRoomCapacity = itemCapacity * rooms;
+
+        if (totalRoomCapacity >= totalCapacityNeeded) {
+          item.style.display = 'block';
+          hasVisibleRooms = true;
+          
+          if (totalRoomCapacity >= totalCapacityNeeded && totalRoomCapacity <= totalCapacityNeeded + (2 * rooms)) {
+            badge.textContent = 'Recommended';
+            badge.classList.add('recommended-badge');
+          }
+        } else {
+          item.style.display = 'none';
+        }
+      });
+
+      if (!hasVisibleRooms) {
+        roomItems.forEach(item => {
+          item.style.display = 'block';
+        });
+        alert('No rooms found for ' + totalGuests + ' guests in ' + rooms + ' room(s). Showing all available rooms.');
+      }
+
+      document.getElementById('rooms').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     const bookingButtons = document.querySelectorAll(".book-btn");
     const modalRoom = document.getElementById("modalRoom");
     const modalPrice = document.getElementById("modalPrice");
+    const modalRoomQuantity = document.getElementById("modalRoomQuantity");
     const roomTypeId = document.getElementById("roomTypeId");
+    const amountField = document.getElementById("downpayment");
+    const roomQuantityHidden = document.getElementById("roomQuantityHidden");
+    const adultsHidden = document.getElementById("adultsHidden");
 
     bookingButtons.forEach(btn => {
       btn.addEventListener("click", () => {
         const roomType = btn.dataset.room;
-        const price = btn.dataset.price;
+        const pricePerRoom = parseInt(btn.dataset.price);
         const roomId = btn.dataset.roomId;
+        const roomQuantity = parseInt(document.getElementById('searchRooms').value) || 1;
+        const adults = parseInt(document.getElementById('searchAdults').value) || 1;
+        
+        currentPricePerNight = pricePerRoom;
         
         modalRoom.textContent = roomType;
-        modalPrice.textContent = "₱" + parseInt(price).toLocaleString();
+        modalRoomQuantity.textContent = roomQuantity;
         roomTypeId.value = roomId;
+        roomQuantityHidden.value = roomQuantity;
+        adultsHidden.value = adults;
+        
+        setDefaultDateTime();
         
         new bootstrap.Modal(document.getElementById('bookingModal')).show();
       });
     });
+
+    function handleGCashPayment() {
+      const roomQuantity = parseInt(document.getElementById('roomQuantityHidden').value);
+      const adults = parseInt(document.getElementById('adultsHidden').value);
+      
+      if (adults < roomQuantity) {
+        alert(`At least 1 adult is required per room. You selected ${roomQuantity} room(s) but only have ${adults} adult(s).`);
+        return;
+      }
+      
+      if (!validateBookingForm()) {
+        alert('Please fill in all required fields before proceeding with payment.');
+        return;
+      }
+      
+      const amount = document.getElementById('downpayment').value;
+      if (!amount || parseFloat(amount) <= 0) {
+        alert('Please enter a valid payment amount.');
+        return;
+      }
+
+      const nights = calculateNights();
+      const confirmed = confirm(
+        `🔵 GCash Payment\n\n` +
+        `Amount: ₱${parseFloat(amount).toLocaleString()}\n` +
+        `Rooms: ${roomQuantity}\n` +
+        `Nights: ${nights}\n\n` +
+        `You will be redirected to GCash to complete your payment.\n\n` +
+        `Click OK to proceed.`
+      );
+
+      if (confirmed) {
+        alert('✅ Payment Successful!\n\nYour booking will now be processed.');
+        document.getElementById('actualSubmitBtn').click();
+      }
+    }
+
+    function validateBookingForm() {
+      const requiredFields = [
+        'firstName', 'lastName', 'emailAddress', 'contactInfo',
+        'startDate', 'endDate', 'downpayment'
+      ];
+
+      for (let fieldId of requiredFields) {
+        const field = document.getElementById(fieldId);
+        if (!field.value) {
+          field.focus();
+          return false;
+        }
+      }
+      return true;
+    }
 
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
       anchor.addEventListener('click', function (e) {
