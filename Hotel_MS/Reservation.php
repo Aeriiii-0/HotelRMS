@@ -447,7 +447,7 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
 <!-- 
         <br> -->
 
-        <h2>Dashboard Statistics</h2>
+        <!-- <h2>Dashboard Statistics</h2>
         <table border="1" cellpadding="10" cellspacing="0" style="width: 100%;">
             <tr>
                 <th>Pending Approval</th>
@@ -461,7 +461,7 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
                 <td style="background: #B3E5FC; font-weight: bold;"><?php echo $stats['available']; ?></td>
                 <td style="background: #FFCCBC; font-weight: bold;"><?php echo $today_checkouts['today_checkouts']; ?></td>
             </tr>
-        </table>
+        </table> -->
     </div>
 </div>
 
