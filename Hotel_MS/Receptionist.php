@@ -22,7 +22,7 @@ if (!$conn) {
 // --- 1. HANDLE CHECK-IN ACTION ---
 if (isset($_POST['check_in'])) {
     $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
-    $update_reservation = "CALL check_in_reservation($reservation_id)";
+    $update_reservation = "CALL sp_update_reservation_status($reservation_id,'CHECKED IN')";
     
     $res = mysqli_query($conn, $update_reservation);
     if ($res && $row = mysqli_fetch_assoc($res)) {
@@ -37,7 +37,7 @@ if (isset($_POST['check_in'])) {
 // --- 2. HANDLE CHECK-OUT ACTION ---
 if (isset($_POST['check_out'])) {
     $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
-    $update_reservation = "CALL check_out_reservation($reservation_id)";
+    $update_reservation = "CALL sp_update_reservation_status($reservation_id,'CHECKED OUT')";
     
     $res = mysqli_query($conn, $update_reservation);
     if ($res && $row = mysqli_fetch_assoc($res)) {
@@ -67,21 +67,20 @@ if (isset($_POST['Maintenance'])) {
 $sql = "SELECT 
     r.room_id,
     r.room_number,
-    r.vacancy_status,
     res.reservation_id,
     res.reservation_status,
     res.start_date,
     res.end_date,
     CONCAT(g.first_name, ' ', g.last_name) as guest_name,
-    s.check_in,
-    s.check_out
+    res.check_in,
+    res.check_out
 FROM room r
 LEFT JOIN reservation res ON r.room_id = res.room_id 
     -- Only pull reservations active TODAY
     AND CURDATE() BETWEEN DATE(res.start_date) AND DATE(res.end_date)
     AND res.reservation_status IN ('CHECKED IN', 'CONFIRMED')
 LEFT JOIN guest g ON res.guest_id = g.guest_id
-LEFT JOIN stay s ON res.reservation_id = s.reservation_id AND s.check_out IS NULL
+-- LEFT JOIN stay s ON res.reservation_id = s.reservation_id AND s.check_out IS NULL
 ORDER BY r.room_number";
 
 $result = mysqli_query($conn, $sql);
@@ -114,14 +113,21 @@ $result = mysqli_query($conn, $sql);
                 
                 // Display Status Labels
                 echo "<td>";
-                if ($row['reservation_status'] == 'CHECKED IN') {
-                    echo "<b style='color:green;'>IN HOUSE</b>";
+                if($row['reservation_status'] == 'CHECKED IN' && new DateTime($row['end_date'])< new DateTime()){
+                    echo "<b style='color:red;'>OVERDUE</b>";
+                } elseif ($row['reservation_status'] == 'CHECKED IN') {
+                    echo "<b style='color:blue;'>IN HOUSE</b>";
+
                 } elseif ($row['reservation_status'] == 'CONFIRMED' || $row['reservation_status'] == 'PENDING') {
                     echo "<b style='color:orange;'>ARRIVING</b>";
-                } elseif ($row['vacancy_status'] == 'MAINTENANCE') {
-                    echo "<b style='color:red;'>CLEANING</b>";
-                } else {
-                    echo "<span style='color:gray;'>AVAILABLE</span>";
+                } elseif ($row['reservation_status'] == 'CHECKED OUT') {
+                    echo "<b style='color:red;'>ARRIVING</b>";
+                }
+                //  elseif ($row['vacancy_status'] == 'MAINTENANCE') {
+                //     echo "<b style='color:red;'>CLEANING</b>";
+                // }
+                 else {
+                    echo "<span style='color:green;'>AVAILABLE</span>";
                 }
                 echo "</td>";
                 
@@ -137,7 +143,8 @@ $result = mysqli_query($conn, $sql);
                         <input type='hidden' name='reservation_id' value='" . $row['reservation_id'] . "'>
                         <input type='submit' name='check_out' value='Check Out' class='btn update'>
                     </form>";
-                } elseif ($row['vacancy_status'] == 'MAINTENANCE' || $row['reservation_status'] == 'CHECKED OUT') {
+                    
+                } elseif ($row['reservation_status'] == 'CHECKED OUT') {
                     echo "<form method='POST' style='display:inline;'>
                         <input type='hidden' name='roomID' value='" . $row['room_id'] . "'>
                         <input type='submit' name='Maintenance' value='Mark Ready'>
@@ -160,11 +167,18 @@ $result = mysqli_query($conn, $sql);
 
 <h2>Daily Overview Statistics</h2>
 <?php
-$stats_sql = "SELECT 
-    SUM(CASE WHEN vacancy_status = 'OCCUPIED' THEN 1 ELSE 0 END) as checked_in,
-    SUM(CASE WHEN vacancy_status = 'AVAILABLE' THEN 1 ELSE 0 END) as available,
-    SUM(CASE WHEN vacancy_status = 'MAINTENANCE' THEN 1 ELSE 0 END) as maintenance
-FROM room";
+$stats_sql = "SELECT
+    SUM(CASE WHEN res.reservation_status = 'CHECKED IN' THEN 1 ELSE 0 END) AS 'OCCUPIED',
+    SUM(CASE WHEN DATE(res.start_date) = CURDATE() AND res.reservation_status = 'CONFIRMED' THEN 1 ELSE 0 END) AS 'AWAITING ARRIVAL',
+    SUM(CASE WHEN DATE(res.end_date) = CURDATE() AND res.reservation_status = 'CHECKED IN' THEN 1 ELSE 0 END) AS 'AWAITING CHECKOUT',
+	(SELECT COUNT(*) FROM room)- COUNT(DISTINCT CASE WHEN res.reservation_status NOT IN ('CANCELLED','CHECKED OUT') 
+                                       AND CURDATE() BETWEEN DATE(res.start_date) AND DATE(res.end_date)
+                                       THEN r.room_id END) AS 'AVAILABLE'
+                                       
+    FROM room r
+LEFT JOIN reservation res on res.room_id = r.room_id 
+    AND CURDATE() BETWEEN DATE(res.start_date) AND DATE(res.end_date)
+    AND res.reservation_status NOT IN ('CANCELLED', 'CHECKED OUT');";
 $stats_result = mysqli_query($conn, $stats_sql);
 $stats = mysqli_fetch_assoc($stats_result);
 
@@ -180,13 +194,13 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
         <th>Currently Occupied</th>
         <th>Vacant & Ready</th>
         <th>Departing Today</th>
-        <th>Under Maintenance</th>
+        <th>Awaiting Arrival</th>
     </tr>
     <tr>
-        <td><?php echo $stats['checked_in']; ?></td>
-        <td><?php echo $stats['available']; ?></td>
-        <td><?php echo $today_checkouts['today_checkouts']; ?></td>
-        <td><?php echo $stats['maintenance']; ?></td>
+        <td><?php echo $stats['OCCUPIED']; ?></td>
+        <td><?php echo $stats['AVAILABLE']; ?></td>
+        <td><?php echo $stats['AWAITING CHECKOUT']; ?></td>
+        <td><?php echo $stats['AWAITING ARRIVAL']; ?></td>
     </tr>
 </table>
 

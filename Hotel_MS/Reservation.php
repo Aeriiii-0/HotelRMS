@@ -32,6 +32,10 @@ if (isset($_POST['InsertSub'])){
         $end_date = mysqli_real_escape_string($conn, $_POST['end_date']);
         $contact_info = mysqli_real_escape_string($conn, $_POST['contact_info']);
         
+        //ATTENTION FIX THIS: NEEDS PAYMENT AND WILL BE UPDATED TO INCLUDE THE NAMES AND DETAILS OF THE GUEST
+        //$call_procedure = "CALL sp_make_reservation_with_payment($guest_id, $room_id,'$contact_info', '$start_date', '$end_date',)";
+        
+        //replace this vvv
         $call_procedure = "CALL make_reservation($guest_id, $room_id, '$start_date', '$end_date', '$contact_info')";
         $proc_result = mysqli_query($conn, $call_procedure);
         
