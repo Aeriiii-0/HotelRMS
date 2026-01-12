@@ -108,6 +108,9 @@ if (isset($_POST['SubmitBooking'])) {
     }
 }
 ?>
+
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -712,14 +715,14 @@ if (isset($_POST['SubmitBooking'])) {
             <div class="row g-3 mb-3">
               <div class="col-md-6">
                 <div class="form-floating">
-                  <input type="datetime-local" class="form-control" id="startDate" name="start_date" placeholder="Check-in" required>
+                  <input type="date" class="form-control" id="startDate" name="start_date" placeholder="Check-in" required>
                   <label for="startDate">Check-in Date & Time</label>
                 </div>
               </div>
 
               <div class="col-md-6">
                 <div class="form-floating">
-                  <input type="datetime-local" class="form-control" id="endDate" name="end_date" placeholder="Check-out" required>
+                  <input type="date" class="form-control" id="endDate" name="end_date" placeholder="Check-out" required>
                   <label for="endDate">Check-out Date & Time</label>
                 </div>
               </div>

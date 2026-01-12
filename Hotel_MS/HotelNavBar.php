@@ -104,15 +104,15 @@ $current_page = basename($_SERVER['PHP_SELF']);
         <li class="nav-item">
           <a class="nav-link <?php echo ($current_page == 'Payment.php') ? 'active' : ''; ?>" href="Payment.php">Payments</a>
         </li>
-        <li class="nav-item">
+        <!-- <li class="nav-item">
           <a class="nav-link <?php echo ($current_page == 'Stay.php') ? 'active' : ''; ?>" href="Stay.php">Stays</a>
-        </li>
+        </li> -->
         <li class="nav-item">
           <a class="nav-link <?php echo ($current_page == 'Guest.php') ? 'active' : ''; ?>" href="Guest.php">Guests</a>
         </li>
-        <li class="nav-item">
+        <!-- <li class="nav-item">
           <a class="nav-link <?php echo ($current_page == 'Staff.php') ? 'active' : ''; ?>" href="Staff.php">Staff</a>
-        </li>
+        </li> -->
         <li class="nav-item">
           <a class="nav-link <?php echo ($current_page == 'BookCoast.php') ? 'active' : ''; ?>" href="Hotel/BookCoast.php">
             Reservation Form

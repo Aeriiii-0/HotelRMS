@@ -61,14 +61,14 @@ if(isset($_POST['ConfirmSub'])){
     }
     else{
         $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
-        $call_procedure = "CALL confirm_reservation($reservation_id)";
+        $call_procedure = "CALL sp_update_reservation_status($reservation_id,'CONFIRMED')";
         $proc_result = mysqli_query($conn, $call_procedure);
         
         if($proc_result){
             $proc_data = mysqli_fetch_assoc($proc_result);
             
             if (isset($proc_data['message'])) {
-                $color = (strpos($proc_data['message'], 'SUCCESS') !== false || strpos($proc_data['message'], 'CONFIRMED') !== false) ? '#81C784' : '#E57373';
+                $color = ($proc_data['status'] === 'SUCCESS') ? '#81C784' : '#E57373';
                 echo "<br><center><span style='color: $color;'>".$proc_data['message']."</span></center>";
             }
             
@@ -102,8 +102,6 @@ if(isset($_POST['CheckInSub'])){
             while(mysqli_more_results($conn)) {
                 mysqli_next_result($conn);
             }
-            
-            // REMOVED: Manual room update and stay creation - triggers handle this automatically!
         }
     }
 }
@@ -127,36 +125,54 @@ if(isset($_POST['CheckInSub'])){
 }
 
 // ============================================================================
-// VIEW RESERVATIONS
+// UNIFIED VIEW & SEARCH LOGIC
 // ============================================================================
-if(isset($_POST['ViewSub'])){
+if(isset($_REQUEST['ViewSub']) || isset($_REQUEST['SearchSub']) || isset($_GET['page'])){
     echo "<br> <center>";
     
-    $filter_status = '';
-    if(!empty($_POST['filter_status'])){
-        $filter_status = mysqli_real_escape_string($conn, $_POST['filter_status']);
-        $sql= "SELECT r.*, CONCAT(g.first_name, ' ', g.last_name) as guest_name, rm.room_number 
-               FROM reservation r 
-               LEFT JOIN guest g ON r.guest_id = g.guest_id 
-               LEFT JOIN room rm ON r.room_id = rm.room_id 
-               WHERE r.reservation_status = '$filter_status' 
-               ORDER BY r.reservation_id DESC";
-        echo "<h3>Showing: $filter_status reservations</h3>";
-    } else {
-        $sql= "SELECT r.*, CONCAT(g.first_name, ' ', g.last_name) as guest_name, rm.room_number 
-               FROM reservation r 
-               LEFT JOIN guest g ON r.guest_id = g.guest_id 
-               LEFT JOIN room rm ON r.room_id = rm.room_id 
-               ORDER BY r.reservation_id DESC";
-        echo "<h3>Showing: All reservations</h3>";
-    }
+    $search_id = isset($_REQUEST['reservation_id']) ? mysqli_real_escape_string($conn, $_REQUEST['reservation_id']) : '';
+    $filter_status = isset($_REQUEST['filter_status']) ? mysqli_real_escape_string($conn, $_REQUEST['filter_status']) : '';
     
-    $result= mysqli_query($conn,$sql);
+    $rows_per_page = 10;
+    $current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+    $offset = ($current_page - 1) * $rows_per_page;
+
+    $conditions = [];
+    $title = "Showing: All reservations";
+
+    if (!empty($search_id)) {
+        $conditions[] = "r.reservation_id = '$search_id'";
+        $title = "Showing: Search result for ID $search_id";
+    }
+
+    if (!empty($filter_status)) {
+        $conditions[] = "r.reservation_status = '$filter_status'";
+        if(empty($search_id)) $title = "Showing: $filter_status reservations";
+    }
+
+    $where_clause = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
+
+    $count_sql = "SELECT COUNT(*) as total FROM reservation r $where_clause";
+    $count_result = mysqli_query($conn, $count_sql);
+    $total_rows = mysqli_fetch_assoc($count_result)['total'];
+    $total_pages = ceil($total_rows / $rows_per_page);
+
+    $sql = "SELECT r.*, CONCAT(g.first_name, ' ', g.last_name) as guest_name, rm.room_number 
+            FROM reservation r 
+            LEFT JOIN guest g ON r.guest_id = g.guest_id 
+            LEFT JOIN room rm ON r.room_id = rm.room_id 
+            $where_clause 
+            ORDER BY r.reservation_id DESC
+            LIMIT $rows_per_page OFFSET $offset";
+    
+    echo "<h3>$title</h3>";
+    $result = mysqli_query($conn, $sql);
 
     if(mysqli_num_rows($result) > 0){
         echo "<table border='1'>
         <tr>
             <th>Res ID</th>
+            <th>Date Created</th>
             <th>Guest Name</th>
             <th>Room #</th>
             <th>Contact</th>
@@ -165,9 +181,10 @@ if(isset($_POST['ViewSub'])){
             <th>Status</th>
         </tr>";
 
-        while($rows= mysqli_fetch_assoc($result)){
+        while($rows = mysqli_fetch_assoc($result)){
             echo "<tr class='clickable-row' 
                       data-resid='".$rows['reservation_id']."' 
+                      data-datecreated='".$rows['date_created']."'
                       data-guestid='".$rows['guest_id']."' 
                       data-roomid='".$rows['room_id']."' 
                       data-contact='".$rows['contact_info']."' 
@@ -175,6 +192,7 @@ if(isset($_POST['ViewSub'])){
                       data-enddate='".$rows['end_date']."' 
                       data-status='".$rows['reservation_status']."'>
                 <td>".$rows['reservation_id']."</td>
+                <td>".$rows['date_created']."</td>
                 <td>".$rows['guest_name']."</td>
                 <td>Room ".$rows['room_number']."</td>
                 <td>".$rows['contact_info']."</td>
@@ -183,65 +201,20 @@ if(isset($_POST['ViewSub'])){
                 <td>".$rows['reservation_status']."</td>
             </tr>";
         }
-        echo "</table><br> Records Displayed: " . mysqli_num_rows($result);
+        echo "</table><br>";
+
+        echo "<div class='pagination'>";
+
+for($i = 1; $i <= $total_pages; $i++){
+    $active_class = ($i == $current_page) ? "active" : "";
+    echo "<a href='?page=$i&reservation_id=$search_id&filter_status=$filter_status' class='$active_class'>$i</a>";
+}
+echo "</div><br>";
+        echo "Total Records Found: $total_rows";
     } else {
-        echo "<p>No reservations found.</p>";
+        echo "<p style='color: #E57373;'>No records found matching your criteria.</p>";
     }
     echo "</center>";
-}
-
-// ============================================================================
-// SEARCH RESERVATION
-// ============================================================================
-if(isset($_POST['SearchSub'])){
-    if(!preg_match("/^[0-9]+$/", $_POST['reservation_id'])){
-        echo "<br><center>Please enter a valid Reservation ID (numbers only)</center>";
-    }
-    else{
-        echo "<center><br>";
-        $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
-        $sql= "SELECT r.*, CONCAT(g.first_name, ' ', g.last_name) as guest_name, rm.room_number 
-               FROM reservation r 
-               LEFT JOIN guest g ON r.guest_id = g.guest_id 
-               LEFT JOIN room rm ON r.room_id = rm.room_id 
-               WHERE r.reservation_id= '$reservation_id'";
-        $result= mysqli_query($conn,$sql);
-
-        if(mysqli_num_rows($result) > 0){
-            echo "<table border='1'>
-            <tr>
-               <th>Res ID</th>
-               <th>Guest Name</th>
-               <th>Room #</th>
-               <th>Contact</th>
-               <th>Start</th>
-               <th>End</th>
-               <th>Status</th>
-            </tr>";
-            while($rows= mysqli_fetch_assoc($result)){
-                echo "<tr class='clickable-row' 
-                          data-resid='".$rows['reservation_id']."' 
-                          data-guestid='".$rows['guest_id']."' 
-                          data-roomid='".$rows['room_id']."' 
-                          data-contact='".$rows['contact_info']."' 
-                          data-startdate='".$rows['start_date']."' 
-                          data-enddate='".$rows['end_date']."' 
-                          data-status='".$rows['reservation_status']."'>
-                     <td>".$rows['reservation_id']."</td>
-                     <td>".$rows['guest_name']."</td>
-                     <td>Room ".$rows['room_number']."</td>
-                     <td>".$rows['contact_info']."</td>
-                     <td>".$rows['start_date']."</td>
-                     <td>".$rows['end_date']."</td>
-                     <td>".$rows['reservation_status']."</td>
-                </tr>";
-            }
-            echo "</table><br> Reservation Found.";
-        } else {
-            echo "<p style='color: #E57373;'>No reservation found with ID: $reservation_id</p>";
-        }
-        echo "</center>";
-    }
 }
 
 // ============================================================================
@@ -278,37 +251,6 @@ if(isset($_POST['EditSub'])){
         }
     }
 }
-
-// ============================================================================
-// DELETE RESERVATION
-// ============================================================================
-if (isset($_POST['DeleteSub'])){
-    if($_POST['reservation_id']==''){
-        echo "<center>Please enter Reservation ID</center>";
-    }
-    else{
-        $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
-        
-        // First delete related stay records
-        $delete_stay = "DELETE FROM stay WHERE reservation_id = '$reservation_id'";
-        mysqli_query($conn, $delete_stay);
-        
-        // Then delete payment records
-        $delete_payment = "DELETE FROM payment WHERE reservation_id = '$reservation_id'";
-        mysqli_query($conn, $delete_payment);
-        
-        // Finally delete reservation
-        $sql="DELETE FROM reservation WHERE reservation_id = '$reservation_id'";
-        $result= mysqli_query($conn, $sql);
-        
-        if($result){
-            echo "<br><center><span style='color: #81C784;'>Record Deleted.</span></center>";
-        } else {
-            echo "<br><center><span style='color: #E57373;'>Error deleting record.</span></center>";
-        }
-    }
-}
-
 // ============================================================================
 // CANCEL RESERVATION
 // ============================================================================
@@ -338,31 +280,43 @@ if(isset($_POST['CancelSub'])){
 $room_sql = "SELECT 
     r.room_id,
     r.room_number,
-    r.vacancy_status,
-    rt.room_type_name,
+    rt.room_type,
     res.reservation_id,
     res.reservation_status,
     res.start_date,
     res.end_date,
     CONCAT(g.first_name, ' ', g.last_name) as guest_name,
-    s.check_in,
-    s.check_out
+    res.check_in,
+    res.check_out
 FROM room r
 LEFT JOIN room_type rt ON r.room_type_id = rt.room_type_id
 LEFT JOIN reservation res ON r.room_id = res.room_id AND res.reservation_status IN ('CHECKED IN', 'CONFIRMED', 'PENDING')
 LEFT JOIN guest g ON res.guest_id = g.guest_id
-LEFT JOIN stay s ON res.reservation_id = s.reservation_id AND s.check_out IS NULL
 ORDER BY r.room_number";
 
 $room_result = mysqli_query($conn, $room_sql);
 
 // Statistics query
 $stats_sql = "SELECT 
-    SUM(CASE WHEN vacancy_status = 'OCCUPIED' THEN 1 ELSE 0 END) as checked_in,
-    SUM(CASE WHEN vacancy_status = 'AVAILABLE' THEN 1 ELSE 0 END) as available,
-    SUM(CASE WHEN vacancy_status = 'MAINTENANCE' THEN 1 ELSE 0 END) as maintenance,
-    (SELECT COUNT(*) FROM reservation WHERE reservation_status = 'PENDING') as pending
-FROM room";
+    -- 1. Guests currently in their rooms
+    SUM(CASE WHEN r.reservation_status = 'CHECKED IN' THEN 1 ELSE 0 END) AS currently_checked_in,
+
+    -- 2. Guests expected to arrive today
+    SUM(CASE WHEN DATE(r.start_date) = CURDATE() AND r.reservation_status IN ('PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS arrivals_today,
+
+    -- 3. Guests expected to leave today
+    SUM(CASE WHEN DATE(r.end_date) = CURDATE() AND r.reservation_status = 'CHECKED IN' THEN 1 ELSE 0 END) AS departures_today,
+
+    -- 4. Total Rooms minus Busy Rooms = Available Rooms
+    (SELECT COUNT(*) FROM room) - 
+    COUNT(DISTINCT CASE WHEN r.reservation_status NOT IN ('CANCELLED', 'CHECKED OUT') 
+          AND CURDATE() BETWEEN DATE(r.start_date) AND DATE(r.end_date) 
+          THEN r.room_id END) AS rooms_available_now
+
+FROM reservation r
+WHERE CURDATE() BETWEEN DATE(r.start_date) AND DATE(r.end_date)
+   OR DATE(r.start_date) = CURDATE()
+   OR DATE(r.end_date) = CURDATE();";
 
 $stats_result = mysqli_query($conn, $stats_sql);
 $stats = mysqli_fetch_assoc($stats_result);
@@ -374,14 +328,33 @@ $today_checkouts_result = mysqli_query($conn, $today_checkouts_sql);
 $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
 ?>
 
-<div style="display: flex; gap: 30px; max-width: 1400px; margin: 0 auto;">
+<div style="display: block; gap: 30px; max-width: 1400px; margin: 0 auto;">
     <div style="flex: 1;">
         <form action="" method="POST" id="reservationForm">
-            
-            <h2>Reservation Management</h2>
+         
+            <div class="filter-section">
+                <label>Filter by Status:</label>
+                <select name="filter_status" id="filter_status">
+                    <option value="">All Statuses</option>
+                    <option value="PENDING">PENDING</option>
+                    <option value="CONFIRMED">CONFIRMED</option>
+                    <option value="CHECKED IN">CHECKED IN</option>
+                    <option value="CHECKED OUT">CHECKED OUT</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                </select>
+                
+                <label>Reservation ID:</label> 
+                <input type="number" name="reservation_id" id="reservation_id"> <br> <br>
 
-            <label>Reservation ID:</label> 
-            <input type="number" name="reservation_id" id="reservation_id"> <br> <br>
+            </div>
+            
+            
+            <div class="btn-group" style="margin-top: 10px;">
+                <input type="submit" name="ViewSub" value="View" class="btn view">
+                <input type="submit" name="SearchSub" value="Search" class="btn search">
+            </div>
+            <br><br>
+            <h2>Reservation Management</h2>
 
             <label>Guest ID:</label> 
             <input type="number" name="guest_id" id="guest_id"> <br> <br>
@@ -399,7 +372,7 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
             <input type="datetime-local" name="end_date" id="end_date"> <br> <br>
 
             <center>
-            <label>Status:</label> 
+            <!-- <label>Status:</label> 
             <select name="reservation_status" id="reservation_status">
                 <option value="choose">Select Status</option>
                 <option value="PENDING">PENDING</option>
@@ -407,42 +380,22 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
                 <option value="CHECKED IN">CHECKED IN</option>
                 <option value="CHECKED OUT">CHECKED OUT</option>
                 <option value="CANCELLED">CANCELLED</option>
-            </select>
-            <br><br>
-            
-            
-            <div class="filter-section">
-                <label>Filter by Status:</label>
-                <select name="filter_status" id="filter_status">
-                    <option value="">All Statuses</option>
-                    <option value="PENDING">PENDING</option>
-                    <option value="CONFIRMED">CONFIRMED</option>
-                    <option value="CHECKED IN">CHECKED IN</option>
-                    <option value="CHECKED OUT">CHECKED OUT</option>
-                    <option value="CANCELLED">CANCELLED</option>
-                </select>
-            </div>
-            
+            </select> -->
             <div class="btn-group">
                 <input type="submit" name="InsertSub" value="Add" class="btn insert">
                 <input type="submit" name="ConfirmSub" value="Confirm" class="btn update" style="background: #90CAF9;">
-                <input type="submit" name="CheckInSub" value="Check In" class="btn update" style="background: #A5D6A7;">
-                <input type="submit" name="CheckOutSub" value="Check Out" class="btn update" style="background: #FFCC80;">
-            </div>
-            <div class="btn-group" style="margin-top: 10px;">
-                <input type="submit" name="EditSub" value="Edit" class="btn update">
-                <input type="submit" name="ViewSub" value="View" class="btn view">
-                <input type="submit" name="SearchSub" value="Search" class="btn search">
                 <input type="submit" name="CancelSub" value="Cancel Res" class="btn delete" style="background: #EF9A9A;">
                 <input type="reset" name="ResetSub" value="Reset" class="btn reset">
+            
             </div>
+            <br><br>
             </center>
         </form>
     </div>
 
     <div style="flex: 1;">
-        <h2>Room Availability</h2>
-        <table border="1" cellpadding="10" cellspacing="0" style="width: 100%;">
+        <!-- <h2>Room Availability</h2> -->
+        <!-- <table border="1" cellpadding="10" cellspacing="0" style="width: 100%;">
             <thead>
                 <tr>
                     <th>Room</th>
@@ -459,7 +412,7 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
                     while ($row = mysqli_fetch_assoc($room_result)) {
                         echo "<tr>";
                         echo "<td>ROOM " . $row['room_number'] . "</td>";
-                        echo "<td>" . $row['room_type_name'] . "</td>";
+                        echo "<td>" . $row['room_type'] . "</td>";
                         echo "<td>" . ($row['guest_name'] ? $row['guest_name'] : 'N/A') . "</td>";
                         echo "<td>" . ($row['start_date'] ? date('M d, g:iA', strtotime($row['start_date'])) : 'N/A') . "</td>";
                         echo "<td>" . ($row['end_date'] ? date('M d, g:iA', strtotime($row['end_date'])) : 'N/A') . "</td>";
@@ -468,15 +421,16 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
                             echo "<td style='color: #FFB74D; font-weight: bold;'>PENDING</td>";
                         } elseif ($row['reservation_status'] == 'CONFIRMED') {
                             echo "<td style='color: #64B5F6; font-weight: bold;'>CONFIRMED</td>";
-                        } elseif ($row['vacancy_status'] == 'OCCUPIED') {
-                            echo "<td style='color: #81C784; font-weight: bold;'>CHECKED IN</td>";
-                        } elseif ($row['vacancy_status'] == 'AVAILABLE') {
-                            echo "<td><strong style='color: #81C784;'>AVAILABLE</strong></td>";
-                        } elseif ($row['vacancy_status'] == 'MAINTENANCE') {
-                            echo "<td style='color: #FFB74D;'>MAINTENANCE</td>";
-                        } else {
-                            echo "<td>" . $row['vacancy_status'] . "</td>";
                         }
+                        //  elseif ($row['vacancy_status'] == 'OCCUPIED') {
+                        //     echo "<td style='color: #81C784; font-weight: bold;'>CHECKED IN</td>";
+                        // } elseif ($row['vacancy_status'] == 'AVAILABLE') {
+                        //     echo "<td><strong style='color: #81C784;'>AVAILABLE</strong></td>";
+                        // } elseif ($row['vacancy_status'] == 'MAINTENANCE') {
+                        //     echo "<td style='color: #FFB74D;'>MAINTENANCE</td>";
+                        // } else {
+                        //     echo "<td>" . $row['vacancy_status'] . "</td>";
+                        // }
                         
                         echo "</tr>";
                     }
@@ -485,9 +439,9 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
                 }
                 ?>
             </tbody>
-        </table>
-
-        <br>
+        </table> -->
+<!-- 
+        <br> -->
 
         <h2>Dashboard Statistics</h2>
         <table border="1" cellpadding="10" cellspacing="0" style="width: 100%;">
@@ -523,7 +477,7 @@ function addRowClickListeners() {
             const contact = this.getAttribute('data-contact');
             const startDate = this.getAttribute('data-startdate');
             const endDate = this.getAttribute('data-enddate');
-            const status = this.getAttribute('data-status');
+            // const status = this.getAttribute('data-status');
             
             document.getElementById('reservation_id').value = resId;
             document.getElementById('guest_id').value = guestId;
@@ -537,7 +491,7 @@ function addRowClickListeners() {
                 document.getElementById('end_date').value = endDate.replace(' ', 'T').substring(0, 16);
             }
             
-            document.getElementById('reservation_status').value = status;
+            // document.getElementById('reservation_status').value = status;
             
             document.getElementById('reservationForm').scrollIntoView({ behavior: 'smooth' });
         });
