@@ -66,6 +66,7 @@ if (isset($_POST['Maintenance'])) {
 // --- 4. MAIN QUERY: SORTED BY STATUS (AVAILABLE, ARRIVING, IN HOUSE) ---
 $sql = "SELECT 
     r.room_id,
+    rt.room_type,
     r.room_number,
     res.reservation_id,
     res.reservation_status,
@@ -86,6 +87,7 @@ LEFT JOIN reservation res ON r.room_id = res.room_id
     AND CURDATE() BETWEEN DATE(res.start_date) AND DATE(res.end_date)
     AND res.reservation_status IN ('CHECKED IN', 'CONFIRMED')
 LEFT JOIN guest g ON res.guest_id = g.guest_id
+LEFT JOIN room_type rt ON r.room_type_id = rt.room_type_id
 ORDER BY status_order, r.room_number";
 
 $result = mysqli_query($conn, $sql);
@@ -96,7 +98,7 @@ $result = mysqli_query($conn, $sql);
 <table border="1" cellpadding="10" cellspacing="0">
     <thead>
         <tr>
-            <th>Room ID</th>
+            <th>Room Type</th>
             <th>Room Number</th>
             <th>Guest Name</th>
             <th>Arrival</th>
@@ -110,7 +112,7 @@ $result = mysqli_query($conn, $sql);
         if (mysqli_num_rows($result) > 0) {
             while ($row = mysqli_fetch_assoc($result)) {
                 echo "<tr>";
-                echo "<td>" . $row['room_id'] . "</td>";
+                echo "<td>" . $row['room_type'] . "</td>";
                 echo "<td>ROOM " . $row['room_number'] . "</td>";
                 echo "<td>" . ($row['guest_name'] ? $row['guest_name'] : '<i style="color:gray;">Vacant</i>') . "</td>";
                 echo "<td>" . ($row['start_date'] ? date('M d, g:iA', strtotime($row['start_date'])) : '--') . "</td>";

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reservation</title>
-    <link rel="stylesheet" href="Style.css?v=2.0">
+    <link rel="stylesheet" type="text/css" href="hotel-Style.css?v=2.0">
     <!-- Updated Pagination Version 2.0 - Clear Cache! -->
 </head>
 <body>
@@ -36,7 +36,6 @@ if (isset($_POST['InsertSub'])){
         //ATTENTION FIX THIS: NEEDS PAYMENT AND WILL BE UPDATED TO INCLUDE THE NAMES AND DETAILS OF THE GUEST
         //$call_procedure = "CALL sp_make_reservation_with_payment($guest_id, $room_id,'$contact_info', '$start_date', '$end_date',)";
         
-        //replace this vvv
         $call_procedure = "CALL make_reservation($guest_id, $room_id, '$start_date', '$end_date', '$contact_info')";
         $proc_result = mysqli_query($conn, $call_procedure);
         
@@ -373,6 +372,16 @@ FROM reservation
 WHERE DATE(end_date) = CURDATE() AND reservation_status = 'CHECKED IN'";
 $today_checkouts_result = mysqli_query($conn, $today_checkouts_sql);
 $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
+
+$pending_reservations ="SELECT 
+	SUM(CASE WHEN reservation_status = 'PENDING' THEN 1 ELSE 0 END) AS 'PENDING',
+    SUM(CASE WHEN reservation_status = 'UNPROCESSED' THEN 1 ELSE 0 END) AS 'UNPROCESSED',
+    COUNT(*) AS 'Total'    
+FROM reservation
+WHERE MONTH(start_date) = MONTH(CURRENT_DATE()) AND
+		YEAR(start_date) = YEAR(CURRENT_DATE());";
+$pending_reservation_result = mysqli_query($conn,$pending_reservations); 
+$pending_result = mysqli_fetch_assoc($pending_reservation_result);
 ?>
 
 <div style="display: block; gap: 30px; max-width: 1400px; margin: 0 auto;">
@@ -388,6 +397,7 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
                     <option value="CHECKED IN">CHECKED IN</option>
                     <option value="CHECKED OUT">CHECKED OUT</option>
                     <option value="CANCELLED">CANCELLED</option>
+                    <option value="CANCELLED">UNPROCESSED</option>
                 </select>
                 
                 <label>Reservation ID:</label> 
@@ -403,31 +413,56 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
             <br><br>
             <h2>Reservation Management</h2>
 
-            <label>Guest ID:</label> 
-            <input type="number" name="guest_id" id="guest_id"> <br> <br>
 
-            <label>Room ID:</label> 
-            <input type="number" name="room_id" id="room_id"> <br> <br>
-
+            <label>Guest First Name:</label> 
+            <input type="text" name="first_name" id="first_name">
+            
+            <label>Guest Last Name:</label> 
+            <input type="text" name="last_name" id="last_name">
+            
+            <label>Email:</label> 
+            <input type="email" name="email" id="email">
+            
             <label>Contact Info:</label> 
-            <input type="text" name="contact_info" id="contact_info" placeholder="09xxxxxxxxx" maxlength="11"> <br> <br>
+            <input type="text" name="contact_info" id="contact_info" placeholder="09xxxxxxxxx" maxlength="11">
+            <br><br><br>
 
+            <div class = "Room-type">
+                <label>Room Type:</label> 
+                <select>
+                    <option value="">Select a Room Type</option>
+                    <option value="Standard Single">Standard Single</option>    
+                    <option value="Standard Double">Standard Double</option>    
+                    <option value="Deluxe King">Deluxe King</option>
+                    <option value="Junior Suite">Junior Suite</option>    
+                    <option value="Executive Suite">Executive Suite</option>    
+                    <option value="Presidential Suite">Presidential Suite</option>    
+                </select>
+            </div>
+            
             <label>Start Date:</label> 
-            <input type="datetime-local" name="start_date" id="start_date"> <br> <br>
+            <input type="date" name="start_date" id="start_date">
 
             <label>End Date:</label> 
-            <input type="datetime-local" name="end_date" id="end_date"> <br> <br>
+            <input type="date" name="end_date" id="end_date"> 
+
+            <br><br><br>
+
+            <label>End Date:</label> 
+            <div class = "Room-type">
+                <label>Room Type:</label> 
+                <select>
+                    <option value="">Select a Room Type</option>
+                    <option value="Standard Single">Standard Single</option>    
+                    <option value="Standard Double">Standard Double</option>    
+                    <option value="Deluxe King">Deluxe King</option>
+                    <option value="Junior Suite">Junior Suite</option>    
+                    <option value="Executive Suite">Executive Suite</option>    
+                    <option value="Presidential Suite">Presidential Suite</option>    
+                </select>
+            </div>
 
             <center>
-            <!-- <label>Status:</label> 
-            <select name="reservation_status" id="reservation_status">
-                <option value="choose">Select Status</option>
-                <option value="PENDING">PENDING</option>
-                <option value="CONFIRMED">CONFIRMED</option>
-                <option value="CHECKED IN">CHECKED IN</option>
-                <option value="CHECKED OUT">CHECKED OUT</option>
-                <option value="CANCELLED">CANCELLED</option>
-            </select> -->
             <div class="btn-group">
                 <input type="submit" name="InsertSub" value="Add" class="btn insert">
                 <input type="submit" name="ConfirmSub" value="Confirm" class="btn update" style="background: #90CAF9;">
@@ -439,72 +474,21 @@ $today_checkouts = mysqli_fetch_assoc($today_checkouts_result);
             </center>
         </form>
     </div>
-
-    <div style="flex: 1;">
-        <!-- <h2>Room Availability</h2> -->
-        <!-- <table border="1" cellpadding="10" cellspacing="0" style="width: 100%;">
-            <thead>
-                <tr>
-                    <th>Room</th>
-                    <th>Type</th>
-                    <th>Guest Name</th>
-                    <th>Check In</th>
-                    <th>Check Out</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                if (mysqli_num_rows($room_result) > 0) {
-                    while ($row = mysqli_fetch_assoc($room_result)) {
-                        echo "<tr>";
-                        echo "<td>ROOM " . $row['room_number'] . "</td>";
-                        echo "<td>" . $row['room_type'] . "</td>";
-                        echo "<td>" . ($row['guest_name'] ? $row['guest_name'] : 'N/A') . "</td>";
-                        echo "<td>" . ($row['start_date'] ? date('M d, g:iA', strtotime($row['start_date'])) : 'N/A') . "</td>";
-                        echo "<td>" . ($row['end_date'] ? date('M d, g:iA', strtotime($row['end_date'])) : 'N/A') . "</td>";
-                        
-                        if ($row['reservation_status'] == 'PENDING') {
-                            echo "<td style='color: #FFB74D; font-weight: bold;'>PENDING</td>";
-                        } elseif ($row['reservation_status'] == 'CONFIRMED') {
-                            echo "<td style='color: #64B5F6; font-weight: bold;'>CONFIRMED</td>";
-                        }
-                        //  elseif ($row['vacancy_status'] == 'OCCUPIED') {
-                        //     echo "<td style='color: #81C784; font-weight: bold;'>CHECKED IN</td>";
-                        // } elseif ($row['vacancy_status'] == 'AVAILABLE') {
-                        //     echo "<td><strong style='color: #81C784;'>AVAILABLE</strong></td>";
-                        // } elseif ($row['vacancy_status'] == 'MAINTENANCE') {
-                        //     echo "<td style='color: #FFB74D;'>MAINTENANCE</td>";
-                        // } else {
-                        //     echo "<td>" . $row['vacancy_status'] . "</td>";
-                        // }
-                        
-                        echo "</tr>";
-                    }
-                } else {
-                    echo "<tr><td colspan='6'>No rooms found</td></tr>";
-                }
-                ?>
-            </tbody>
-        </table> -->
-<!-- 
-        <br> -->
-
-        <!-- <h2>Dashboard Statistics</h2>
-        <table border="1" cellpadding="10" cellspacing="0" style="width: 100%;">
+    <div>
+        <br>
+        <h2>Pending Count</h2>
+        <table border="1" cellpadding="10" cellspacing="0">
             <tr>
-                <th>Pending Approval</th>
-                <th>Checked In</th>
-                <th>Available Rooms</th>
-                <th>Expected Today</th>
+                <th>Pending</th>
+                <th>Unprocessed</th>
+                <th>Total this month</th>
             </tr>
             <tr>
-                <td style="background: #FFF9C4; font-weight: bold;"><?php echo $stats['pending']; ?></td>
-                <td style="background: #C8E6C9; font-weight: bold;"><?php echo $stats['checked_in']; ?></td>
-                <td style="background: #B3E5FC; font-weight: bold;"><?php echo $stats['available']; ?></td>
-                <td style="background: #FFCCBC; font-weight: bold;"><?php echo $today_checkouts['today_checkouts']; ?></td>
+                <td><?php echo $pending_result['PENDING']?></td>
+                <td><?php echo $pending_result['UNPROCESSED']?></td>
+                <td><?php echo $pending_result['Total']?></td>
             </tr>
-        </table> -->
+        </table>
     </div>
 </div>
 
