@@ -177,17 +177,20 @@ if (isset($_POST['DeleteSub'])){
         echo "<center>Incomplete Fields.</center>";
     }
     else{
-        $sql="DELETE FROM room_type WHERE room_type_id = '$_POST[room_type_id]'";
-        $result= mysqli_query($conn, $sql);
-        
-        $count = mysqli_affected_rows($conn);
+        try{
+             $sql="DELETE FROM room_type WHERE room_type_id = '$_POST[room_type_id]'";
+            $result= mysqli_query($conn, $sql);   
+            $count = mysqli_affected_rows($conn);
 
-        if($count > 0){
-            echo "<br><br><center>Record Deleted Successfully ($count row(s) deleted).</center>";
-        } elseif($count == 0) {
-            echo "<br><br><center>No Room Type With {$_POST['room_type_id']}.</center>";
-        } else {
-            echo "<br><br><center>Error: Could not delete record.</center>";
+            if($count > 0){
+                echo "<br><br><center>Record Deleted Successfully ($count row(s) deleted).</center>";
+            } elseif($count == 0) {
+                echo "<br><br><center>No Room Type With {$_POST['room_type_id']}.</center>";
+            } else {
+                echo "<br><br><center>Error: Could not delete record.</center>";
+            }
+        }catch(mysqli_sql_exception $e){
+             die("<br><br><center>Error: Cannot Delete Room Type used in Room. Remove or Reassign the room(s) first</center>");
         }
     }
 }

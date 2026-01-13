@@ -155,7 +155,7 @@ if(isset($_POST['EditSub'])){
 
         }
         catch (mysqli_sql_exception $e){
-            die("<br><center>Error: " . $e->getMessage()."</center>");
+            die("<br><br><center>Error: " . $e->getMessage()."</center>");
         }
     }
 }
@@ -164,18 +164,22 @@ if (isset($_POST['DeleteSub'])){
      if($_POST['room_id']==''){
         echo "<center>Please enter Room ID to delete.</center>";
     } else {
-        $id = mysqli_real_escape_string($conn, $_POST['room_id']);
-        $sql="DELETE FROM room WHERE room_id = '$id'";
-        $result= mysqli_query($conn, $sql);
-        
-        $count = mysqli_affected_rows($conn);
+        try{
+            $id = mysqli_real_escape_string($conn, $_POST['room_id']);
+            $sql="DELETE FROM room WHERE room_id = '$id'";
+            $result= mysqli_query($conn, $sql);
+            
+            $count = mysqli_affected_rows($conn);
 
-        if($count > 0){
-            echo "<br><br><center>Record Deleted Successfully ($count row(s) changed).</center>";
-        } elseif($count == 0) {
-            echo "<br><br><center>No record with that ID</center>";
-        } else {
-            echo "<br><br><center>Error: Could not deleting record.</center>";
+            if($count > 0){
+                echo "<br><br><center>Record Deleted Successfully ($count row(s) changed).</center>";
+            } elseif($count == 0) {
+                echo "<br><br><center>No record with that ID</center>";
+            } else {
+                echo "<br><br><center>Error: Could not deleting record.</center>";
+            }
+        }catch(mysqli_sql_exception $e){
+            die("<br><br><center>Error: Cannot DELETE room used in reservation. Reassign or Remove the reservation(s) first</center>");
         }
     }
 }
