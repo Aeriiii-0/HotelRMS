@@ -1,7 +1,7 @@
 <?php
 $DBHost = "localhost";
 $DBUser = "root";
-$DBPass = "1234";
+$DBPass = "";
 $DBName = "hotel";
 
 $conn = mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
@@ -20,12 +20,31 @@ if (isset($_POST['SubmitBooking'])) {
         empty($_POST['email_address']) || empty($_POST['room_quantity'])) {
         $booking_message = "Please complete all fields.";
         $booking_status = "error";
-    } else {
+    } 
+    elseif (!filter_var($_POST['email_address'], FILTER_VALIDATE_EMAIL)) {
+        $booking_message = "The email address provided is invalid.";
+        $booking_status = "error";
+    }
+    elseif (!preg_match('/^09\d{9}$/', $_POST['contact_info'])) {
+        $booking_message = "Contact number must be a valid 11-digit PH number (09xxxxxxxxx).";
+        $booking_status = "error";
+    }
+    elseif (!preg_match('/^[a-zA-Z\s\-]+$/', $_POST['first_name']) || !preg_match('/^[a-zA-Z\s\-]+$/', $_POST['last_name'])) {
+        $booking_message = "Names should only contain letters.";
+        $booking_status = "error";
+    }
+    elseif ((int)$_POST['adults'] < (int)$_POST['room_quantity']) {
+        $booking_message = "At least 1 adult is required per room. You selected $room_quantity room(s) but only have $adults adult(s).";
+        $booking_status = "error";
+    } 
+    else {
         $first_name = mysqli_real_escape_string($conn, $_POST['first_name']);
         $last_name = mysqli_real_escape_string($conn, $_POST['last_name']);
-        $email = mysqli_real_escape_string($conn, $_POST['email_address']);
-        $start_date = mysqli_real_escape_string($conn, $_POST['start_date']);
-        $end_date = mysqli_real_escape_string($conn, $_POST['end_date']);
+        $email = mysqli_real_escape_string($conn, $_POST['email_address']);    
+          $start_date_raw = mysqli_real_escape_string($conn, $_POST['start_date']);
+          $end_date_raw = mysqli_real_escape_string($conn, $_POST['end_date']);        
+        $start_date = $start_date_raw . "14:00:00";
+        $end_date = $end_date_raw . "12:00:00";
         $contact = mysqli_real_escape_string($conn, $_POST['contact_info']);
         $amount = mysqli_real_escape_string($conn, $_POST['amount']);
         $requested_type_id = (int)$_POST['room_type_id'];
@@ -33,10 +52,6 @@ if (isset($_POST['SubmitBooking'])) {
         $room_quantity = (int)$_POST['room_quantity'];
         $adults = (int)$_POST['adults'];
 
-        if ($adults < $room_quantity) {
-            $booking_message = "At least 1 adult is required per room. You selected $room_quantity room(s) but only have $adults adult(s).";
-            $booking_status = "error";
-        } else {
             $sql_find_rooms = "SELECT r.room_id 
                               FROM room r
                               WHERE r.room_type_id = '$requested_type_id'
@@ -110,7 +125,7 @@ if (isset($_POST['SubmitBooking'])) {
                 $booking_message = "Sorry, only $available_count room(s) of that type are available for the selected dates. You requested $room_quantity room(s).";
                 $booking_status = "error";
             }
-        }
+        
     }
 }
 ?>
@@ -368,6 +383,7 @@ if (isset($_POST['SubmitBooking'])) {
                 <div class="form-floating">
                   <input type="text" class="form-control" id="firstName" name="first_name" placeholder="Juan" required>
                   <label for="firstName">First Name</label>
+                  <div class="invalid-feedback">Please enter a valid first name.</div>
                 </div>
               </div>
 
@@ -375,6 +391,7 @@ if (isset($_POST['SubmitBooking'])) {
                 <div class="form-floating">
                   <input type="text" class="form-control" id="lastName" name="last_name" placeholder="Dela Cruz" required>
                   <label for="lastName">Last Name</label>
+                  <div class="invalid-feedback">Please enter a valid last name.</div>
                 </div>
               </div>
             </div>
@@ -382,30 +399,37 @@ if (isset($_POST['SubmitBooking'])) {
             <div class="form-floating mb-3">
               <input type="email" class="form-control" id="emailAddress" name="email_address" placeholder="juan@gmail.com" required>
               <label for="emailAddress">Email Address</label>
+              <div class="invalid-feedback">Please enter a valid email address.</div>
             </div>
 
             <div class="form-floating mb-4">
               <input type="tel" class="form-control" id="contactInfo" name="contact_info" placeholder="09xxxxxxxxx" required>
               <label for="contactInfo">Contact Number</label>
+              <div class="invalid-feedback">Please enter a valid 11-digit PH mobile number.</div>
             </div>
 
             <h6 class="fw-bold mb-3">Reservation Details</h6>
-
+            <p class="text-muted mb-3" style="font-size: 0.85rem;">   
+            <span class="me-1">💡</span> Room Bookings start at exactly <b>2:00PM</b> and ends at <b>12:00PM</b>
+            </p>
+            
             <div class="row g-3 mb-3">
               <div class="col-md-6">
                 <div class="form-floating">
-                  <input type="datetime-local" class="form-control" id="startDate" name="start_date" placeholder="Check-in" required onchange="updateCheckoutMin()">
-                  <label for="startDate">Check-in Date & Time</label>
+                  <input type="date" class="form-control" id="startDate" name="start_date" placeholder="Check-in" required onchange="updateCheckoutMin()">
+                  <label for="startDate">Check-in Date</label>
                 </div>
               </div>
 
               <div class="col-md-6">
                 <div class="form-floating">
-                  <input type="datetime-local" class="form-control" id="endDate" name="end_date" placeholder="Check-out" required onchange="calculateTotalPrice()">
-                  <label for="endDate">Check-out Date & Time</label>
+                  <input type="date" class="form-control" id="endDate" name="end_date" placeholder="Check-out" required onchange="calculateTotalPrice()">
+                  <label for="endDate">Check-out Date</label>
                 </div>
               </div>
             </div>
+
+
 
             <h6 class="fw-bold mb-3">Payment Information</h6>
 
@@ -446,7 +470,8 @@ if (isset($_POST['SubmitBooking'])) {
       const todayStr = today.toISOString().split('T')[0];
       
       document.getElementById('searchCheckin').min = todayStr;
-      document.getElementById('startDate').min = today.toISOString().slice(0, 16);
+      const modalStartDate = document.getElementById('startDate');
+      modalStartDate.min = todayStr;
     }
 
     setMinDates();
@@ -471,9 +496,10 @@ if (isset($_POST['SubmitBooking'])) {
       const checkin = new Date(checkinValue);
       const minCheckout = new Date(checkin);
       minCheckout.setDate(minCheckout.getDate() + 1);
-      minCheckout.setHours(14, 0, 0, 0);
+      // minCheckout.setHours(14, 0, 0, 0);
       
-      const minCheckoutStr = minCheckout.toISOString().slice(0, 16);
+      //const minCheckoutStr = minCheckout.toISOString().slice(0, 16);
+      const minCheckoutStr = minCheckout.toISOString().split('T')[0];
       document.getElementById('endDate').min = minCheckoutStr;
       
       const currentCheckout = document.getElementById('endDate').value;
@@ -501,15 +527,15 @@ if (isset($_POST['SubmitBooking'])) {
       let checkinDate, checkoutDate;
       
       if (searchCheckin && searchCheckout) {
-        checkinDate = searchCheckin + 'T11:00';
-        checkoutDate = searchCheckout + 'T14:00';
+        checkinDate = searchCheckin;
+        checkoutDate = searchCheckout;
       } else {
         const today = new Date();
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
         
-        checkinDate = today.toISOString().slice(0, 10) + 'T11:00';
-        checkoutDate = tomorrow.toISOString().slice(0, 10) + 'T14:00';
+        checkinDate = today.toISOString().split('T')[0];
+        checkoutDate = tomorrow.toISOString().split('T')[0];
       }
 
       document.getElementById('startDate').value = checkinDate;
@@ -620,7 +646,11 @@ if (isset($_POST['SubmitBooking'])) {
     });
 
     function handleGCashPayment() {
-      const roomQuantity = parseInt(document.getElementById('roomQuantityHidden').value);
+    if (!validateBookingForm()) {
+        // alert('Please fill in all required fields correctly before proceeding with payment.');
+        return;
+      }  
+    const roomQuantity = parseInt(document.getElementById('roomQuantityHidden').value);
       const adults = parseInt(document.getElementById('adultsHidden').value);
       
       if (adults < roomQuantity) {
@@ -628,10 +658,7 @@ if (isset($_POST['SubmitBooking'])) {
         return;
       }
       
-      if (!validateBookingForm()) {
-        alert('Please fill in all required fields before proceeding with payment.');
-        return;
-      }
+      
       
       const amount = document.getElementById('downpayment').value;
       if (!amount || parseFloat(amount) <= 0) {
@@ -656,20 +683,40 @@ if (isset($_POST['SubmitBooking'])) {
     }
 
     function validateBookingForm() {
-      const requiredFields = [
-        'firstName', 'lastName', 'emailAddress', 'contactInfo',
-        'startDate', 'endDate', 'downpayment'
-      ];
+      const fields = ['firstName', 'lastName', 'emailAddress', 'contactInfo', 'startDate', 'endDate'];
+      let isValid = true;
 
-      for (let fieldId of requiredFields) {
-        const field = document.getElementById(fieldId);
-        if (!field.value) {
-          field.focus();
-          return false;
-        }
-      }
-      return true;
-    }
+      // 1. Reset all states
+      fields.forEach(id => {
+        document.getElementById(id).classList.remove('is-invalid');
+      });
+
+      // 2. Helper function to mark fields as red
+      const markInvalid = (id) => {
+        document.getElementById(id).classList.add('is-invalid');
+        isValid = false;
+      };
+
+      // 3. Validation Logic
+      const email = document.getElementById('emailAddress').value;
+      const contact = document.getElementById('contactInfo').value;
+      const firstName = document.getElementById('firstName').value;
+      const lastName = document.getElementById('lastName').value;
+
+      // Regex checks
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) markInvalid('emailAddress');
+      if (!/^09\d{9}$/.test(contact)) markInvalid('contactInfo');
+      if (!/^[a-zA-Z\s\-]+$/.test(firstName)) markInvalid('firstName');
+      if (!/^[a-zA-Z\s\-]+$/.test(lastName)) markInvalid('lastName');
+
+      // Check for empty fields
+      fields.forEach(id => {
+        if (!document.getElementById(id).value) markInvalid(id);
+      });
+
+      return isValid;
+}
+
 
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
       anchor.addEventListener('click', function (e) {
