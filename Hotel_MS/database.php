@@ -1,7 +1,7 @@
 <?php
 $DBHost = "localhost";
-$DBUser = "admin";
-$DBPass = "admin123";
+$DBUser = "root";
+$DBPass = "";
 $DBName = "hotel";
 $conn = mysqli_connect($DBHost, $DBUser, $DBPass, $DBName);
 ?>

@@ -17,18 +17,24 @@
          <label for="">Room Type ID:</label> 
          <input type="number" name="room_type_id" id="room_type_id"> <br> <br>
 
+         
+         <input type="submit" name="ViewSub" value="View" class="btn view">
+         <input type="submit" name="SearchSub" value="Search" class="btn search">
+         <br> <br>
+
          <label for="">Room Type Name:</label> 
          <input type="text" name="room_type_name" id="room_type_name"> <br> <br>
        
          <label for="">Room Type Price:</label> 
          <input type="number" name="room_type_price" id="room_type_price"> <br> <br>
+
+         <label for="">Maximum Capacity:</label> 
+         <input type="number" name="max_capacity" id="max_capacity"> <br> <br>
         
              <center>
         <div class="btn-group">
             <input type="submit" name="InsertSub" value="Add" class="btn insert">
             <input type="submit" name="EditSub" value="Edit" class="btn update">
-            <input type="submit" name="ViewSub" value="View" class="btn view">
-            <input type="submit" name="SearchSub" value="Search" class="btn search">
             <input type="submit" name="DeleteSub" value="Delete" class="btn delete">
             <input type="reset" name="ResetSub" value="Reset" class="btn reset">
         </div>
@@ -44,15 +50,24 @@ if (!$conn){
 }
 
 if (isset($_POST['InsertSub'])){
-    if($_POST['room_type_id']=='' || $_POST['room_type_name']==''|| $_POST['room_type_price']==''){
+    if($_POST['room_type_name']==''|| $_POST['room_type_price']==''||$_POST['max_capacity'] ==''){
         echo "<br><center>Fields are incomplete </center>";
     }
-    else{
-        $sql= "INSERT into room_type (room_type_id,room_type_name,room_type_price ) VALUES ('$_POST[room_type_id]', '$_POST[room_type_name]', '$_POST[room_type_price]')";
-        $result= mysqli_query($conn, $sql);
+    else if ($_POST['room_type_price']==1000||$_POST['max_capacity'] <= 1){
+        echo "<br><center>Invalid Fields</center>";
+    }
+    else{   
+        try {
+            $sql= "INSERT into room_type (room_type,room_price,guest_capacity ) VALUES ('$_POST[room_type_name]', '$_POST[room_type_price]','$_POST[max_capacity]')";
+            $result= mysqli_query($conn, $sql);
 
-        if($result){
-            echo "<br><center>Room Added.</center>";
+            if($result){
+                echo "<br><center>Room Added.</center>";
+            }
+        } 
+        catch(mysqli_sql_exception $e){
+
+                die("<br><br><center>Error: " . $e->getMessage()."</center>");
         }
     }
 }
@@ -68,15 +83,17 @@ if(isset($_POST['ViewSub'])){
         <tr>
             <th>Room Type ID</th>
             <th>Room Type Name</th>
-            <th>Room Type Price</th> 
+            <th>Room Type Price</th>
+            <th>Room Type Max Capacity </th> 
         </tr>";
 
     while($rows= mysqli_fetch_assoc($result)){
         echo "
         <tr>
             <td>".$rows['room_type_id']."</td>
-            <td>".$rows['room_type_name']."</td>
-            <td>".$rows['room_type_price']."</td>
+            <td>".$rows['room_type']."</td>
+            <td>".$rows['room_price']."</td>
+            <td>".$rows['guest_capacity']."</td>
         </tr>";
     }
         echo "</table>";
@@ -91,7 +108,7 @@ if(isset($_POST['SearchSub'])){
     }
     else{
         echo "<center><br>";
-        $sql= "SELECT room_type_id, room_type_name, room_type_price FROM room_type WHERE room_type_id= '$_POST[room_type_id]'";
+        $sql= "SELECT * FROM room_type WHERE room_type_id= '$_POST[room_type_id]'";
         $result= mysqli_query($conn,$sql);
 
         if(mysqli_num_rows($result) > 0){
@@ -99,16 +116,18 @@ if(isset($_POST['SearchSub'])){
             echo "
             <tr>
                <th>Room Type ID</th>
-               <th>Room Type Name</th>
-               <th>Room Type Price</th> 
+               <th>Room Type</th>
+               <th>Room Price</th> 
+               <th>Room Max Capacity </th> 
             </tr>";
 
             while($rows= mysqli_fetch_assoc($result)){
                 echo "
                 <tr>
                      <td>".$rows['room_type_id']."</td>
-                     <td>".$rows['room_type_name']."</td>
-                     <td>".$rows['room_type_price']."</td>
+                     <td>".$rows['room_type']."</td>
+                     <td>".$rows['room_price']."</td>
+                     <td>".$rows['guest_capacity']."</td>
                 </tr>";
             }
             echo "</table>";
@@ -119,15 +138,22 @@ if(isset($_POST['SearchSub'])){
 }
 
 if(isset($_POST['EditSub'])){
-    if($_POST['room_type_id']=='' || $_POST['room_type_name']==''||$_POST['room_type_price']==''){
+    if($_POST['room_type_id']=='' || $_POST['room_type_name']==''|| $_POST['room_type_price']==''||$_POST['max_capacity'] ==''){
         echo "<center>Incomplete Fields.</center>";
     }
     else{
-        $sql= "UPDATE room_type SET room_type_name = '$_POST[room_type_name]', room_type_price = '$_POST[room_type_price]' WHERE room_type_id = '$_POST[room_type_id]'";
-        $result= mysqli_query($conn, $sql);
+        try {
+            $sql= "UPDATE room_type SET room_type = '$_POST[room_type_name]', room_price = '$_POST[room_type_price]', guest_capacity = '$_POST[max_capacity]' WHERE room_type_id = '$_POST[room_type_id]'";
+            $result= mysqli_query($conn, $sql);
 
-        if($result){
-            echo"<br><center>Record Updated.</center>";
+            if($result){
+                echo"<br><center>Record Updated.</center>";
+            } else {
+                echo"<br><center>Error Occur!</center>";
+            }
+        }
+        catch(mysqli_sql_exception $e){
+            die("<br><br><center>Error: " . $e->getMessage()."</center>");
         }
     }
 }

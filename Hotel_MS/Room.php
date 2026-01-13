@@ -16,27 +16,22 @@
     <label for="room_id">Room ID (for Edit/Delete):</label> 
     <input type="number" name="room_id" id="room_id"> <br> <br>
 
+    
+    <input type="submit" name="ViewSub" value="View" class="btn view">
+    <input type="submit" name="SearchSub" value="Search" class="btn search">
+    <br><br>
+
     <label for="room_number">Room Number:</label> 
     <input type="number" name="room_number" id="room_number"> <br> <br>
 
     <label for="room_type_id">Room Type ID:</label> 
     <input type="number" name="room_type_id" id="room_type_id"> <br> <br>
-    
-    <label for="vacancy_status">Vacancy Status: </label> 
-    <select name="vacancy_status" id="vacancy_status">
-        <option value="">Select a status</option>
-        <option value="AVAILABLE">AVAILABLE</option>
-        <option value="OCCUPIED">OCCUPIED</option>
-        <option value="MAINTENANCE">MAINTENANCE</option>
-    </select>
 
     <br> <br>
     <center>
         <div class="btn-group">
             <input type="submit" name="InsertSub" value="Add" class="btn insert">
             <input type="submit" name="EditSub" value="Edit" class="btn update">
-            <input type="submit" name="ViewSub" value="View" class="btn view">
-            <input type="submit" name="SearchSub" value="Search" class="btn search">
             <input type="submit" name="DeleteSub" value="Delete" class="btn delete">
             <input type="reset" name="ResetSub" value="Reset" class="btn reset">
         </div>
@@ -53,21 +48,29 @@ if (!$conn){
 }
 
 if (isset($_POST['InsertSub'])){
-    if($_POST['vacancy_status']=='' || $_POST['room_number']=='' || $_POST['room_type_id']==''){
-        echo "<br><center>Fields are incomplete </center>";
-    } else {
+    if($_POST['room_number']=='' || $_POST['room_type_id']==''){
+        die ("<br><center>Fields are incomplete </center>");
+    }else if ($_POST['room_number']<=0){
+         die( "<br><center>Invalid Room Number </center>");
+    } 
+    
+    else {
         $room_num = mysqli_real_escape_string($conn, $_POST['room_number']);
-        $status = mysqli_real_escape_string($conn, $_POST['vacancy_status']);
         $type_id = mysqli_real_escape_string($conn, $_POST['room_type_id']);
 
-        $sql= "INSERT INTO room (room_number, vacancy_status, room_type_id) VALUES ('$room_num', '$status', '$type_id')";
-        $result= mysqli_query($conn, $sql);
+        $sql= "INSERT INTO room (room_number, room_type_id) VALUES ('$room_num', '$type_id')";
+        try {
+            $result= mysqli_query($conn, $sql);
 
-        if($result){
-            echo "<br><center>Room Added.</center>";
-        } else {
-            echo "<br><center>Error: " . mysqli_error($conn) . "</center>";
+            if($result){
+                echo "<br><center>Room Added.</center>";
+            } else {
+                die("<br><center>Error: " . mysqli_error($conn) . "</center>") ;
+            }
+        } catch(mysqli_sql_exception $e){
+            die("<br><center>Error: " . $e->getMessage()."</center>");
         }
+        
     }
 }
 
@@ -82,8 +85,7 @@ if(isset($_POST['ViewSub'])){
         <tr>
             <th>Room ID</th>
             <th>Room Number</th>
-            <th>Type ID</th>
-            <th>Vacancy Status</th> 
+            <th>Room Type ID</th>
         </tr>";
 
         while($rows= mysqli_fetch_assoc($result)){
@@ -91,7 +93,6 @@ if(isset($_POST['ViewSub'])){
                 <td>".$rows['room_id']."</td>
                 <td>".$rows['room_number']."</td>
                 <td>".$rows['room_type_id']."</td>
-                <td>".$rows['vacancy_status']."</td>
             </tr>";
         }
         echo "</table><br> Records Displayed";
@@ -101,12 +102,12 @@ if(isset($_POST['ViewSub'])){
 
 
 if(isset($_POST['SearchSub'])){
-    if(empty($_POST['room_number'])){
-        echo "<br><center>Please enter a Room Number to search</center>";
+    if(empty($_POST['room_id'])){
+        echo "<br><center>Please enter a Room ID to search</center>";
     } else {
         echo "<center><br>";
-        $search_num = mysqli_real_escape_string($conn, $_POST['room_number']);
-        $sql= "SELECT * FROM room WHERE room_number= '$search_num'";
+        $search_num = mysqli_real_escape_string($conn, $_POST['room_id']);
+        $sql= "SELECT * FROM room WHERE room_id= '$search_num'";
         $result= mysqli_query($conn,$sql);
 
         if(mysqli_num_rows($result) > 0){
@@ -114,15 +115,13 @@ if(isset($_POST['SearchSub'])){
             <tr>
                 <th>Room ID</th>
                 <th>Room Number</th>
-                <th>Type ID</th>
-                <th>Vacancy Status</th> 
+                <th>Room Type ID</th>
             </tr>";
             while($rows= mysqli_fetch_assoc($result)){
                 echo "<tr>
                      <td>".$rows['room_id']."</td>
                      <td>".$rows['room_number']."</td>
                      <td>".$rows['room_type_id']."</td>
-                     <td>".$rows['vacancy_status']."</td>
                 </tr>";
             }
             echo "</table><br> Room Found.";
@@ -135,19 +134,23 @@ if(isset($_POST['SearchSub'])){
 
 
 if(isset($_POST['EditSub'])){
-    if($_POST['room_id']=='' || $_POST['room_number']=='' || $_POST['vacancy_status'] =='' || $_POST['room_type_id'] == ''){
-        echo "<center>Incomplete Fields for updating.</center>";
+    if($_POST['room_id']=='' || $_POST['room_number']==''|| $_POST['room_type_id'] == ''){
+         "<center>Incomplete Fields for updating.</center>";
     } else {
         $id = mysqli_real_escape_string($conn, $_POST['room_id']);
         $num = mysqli_real_escape_string($conn, $_POST['room_number']);
-        $stat = mysqli_real_escape_string($conn, $_POST['vacancy_status']);
         $tid = mysqli_real_escape_string($conn, $_POST['room_type_id']);
 
-        $sql= "UPDATE room SET room_number = '$num', vacancy_status = '$stat', room_type_id = '$tid' WHERE room_id = '$id'";
-        $result= mysqli_query($conn, $sql);
+        try {
+            $sql= "UPDATE room SET room_number = '$num', room_type_id = '$tid' WHERE room_id = '$id'";
+            $result= mysqli_query($conn, $sql);
 
-        if($result){
-            echo"<br><center>Record Updated.</center>";
+            if($result){
+                echo"<br><center>Record Updated.</center>";
+            }
+        }
+        catch (mysqli_sql_exception $e){
+            die("<br><center>Error: " . $e->getMessage()."</center>");
         }
     }
 }
