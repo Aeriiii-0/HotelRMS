@@ -74,7 +74,6 @@ if (isset($_POST['InsertSub'])){
     }
 }
 
-
 if(isset($_POST['ViewSub'])){
     echo "<br> <center>";
     $sql= "SELECT * FROM room";
@@ -99,7 +98,6 @@ if(isset($_POST['ViewSub'])){
     }
     echo "</center>";
 }
-
 
 if(isset($_POST['SearchSub'])){
     if(empty($_POST['room_id'])){
@@ -145,16 +143,22 @@ if(isset($_POST['EditSub'])){
             $sql= "UPDATE room SET room_number = '$num', room_type_id = '$tid' WHERE room_id = '$id'";
             $result= mysqli_query($conn, $sql);
 
-            if($result){
-                echo"<br><center>Record Updated.</center>";
+           $count = mysqli_affected_rows($conn);
+
+            if($count > 0){
+                echo "<br><br><center>Record Updated Successfully ($count row(s) changed).</center>";
+            } elseif($count == 0) {
+                echo "<br><br><center>No changes were made (Data is already identical) or no record with that ID</center>";
+            } else {
+                echo "<br><br><center>Error: Could not update record.</center>";
             }
+
         }
         catch (mysqli_sql_exception $e){
             die("<br><center>Error: " . $e->getMessage()."</center>");
         }
     }
 }
-
 
 if (isset($_POST['DeleteSub'])){
      if($_POST['room_id']==''){
@@ -163,8 +167,15 @@ if (isset($_POST['DeleteSub'])){
         $id = mysqli_real_escape_string($conn, $_POST['room_id']);
         $sql="DELETE FROM room WHERE room_id = '$id'";
         $result= mysqli_query($conn, $sql);
-        if($result) {
-            echo "<br><center>Record Deleted.</center>";
+        
+        $count = mysqli_affected_rows($conn);
+
+        if($count > 0){
+            echo "<br><br><center>Record Deleted Successfully ($count row(s) changed).</center>";
+        } elseif($count == 0) {
+            echo "<br><br><center>No record with that ID</center>";
+        } else {
+            echo "<br><br><center>Error: Could not deleting record.</center>";
         }
     }
 }

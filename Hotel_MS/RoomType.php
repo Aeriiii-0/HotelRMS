@@ -143,13 +143,28 @@ if(isset($_POST['EditSub'])){
     }
     else{
         try {
-            $sql= "UPDATE room_type SET room_type = '$_POST[room_type_name]', room_price = '$_POST[room_type_price]', guest_capacity = '$_POST[max_capacity]' WHERE room_type_id = '$_POST[room_type_id]'";
-            $result= mysqli_query($conn, $sql);
+            // It is safer to escape strings to prevent SQL errors
+            $id = mysqli_real_escape_string($conn, $_POST['room_type_id']);
+            $name = mysqli_real_escape_string($conn, $_POST['room_type_name']);
+            $price = mysqli_real_escape_string($conn, $_POST['room_type_price']);
+            $cap = mysqli_real_escape_string($conn, $_POST['max_capacity']);
 
-            if($result){
-                echo"<br><center>Record Updated.</center>";
+            $sql= "UPDATE room_type SET 
+                    room_type = '$name', 
+                    room_price = '$price', 
+                    guest_capacity = '$cap' 
+                   WHERE room_type_id = '$id'";
+            
+            $result = mysqli_query($conn, $sql);
+
+            $count = mysqli_affected_rows($conn);
+
+            if($count > 0){
+                echo "<br><br><center>Record Updated Successfully ($count row(s) changed).</center>";
+            } elseif($count == 0) {
+                echo "<br><br><center>No changes were made (Data is already identical) or no record with that ID</center>";
             } else {
-                echo"<br><center>Error Occur!</center>";
+                echo "<br><br><center>Error: Could not update record.</center>";
             }
         }
         catch(mysqli_sql_exception $e){
@@ -157,7 +172,6 @@ if(isset($_POST['EditSub'])){
         }
     }
 }
-
 if (isset($_POST['DeleteSub'])){
      if($_POST['room_type_id']==''){
         echo "<center>Incomplete Fields.</center>";
@@ -165,7 +179,16 @@ if (isset($_POST['DeleteSub'])){
     else{
         $sql="DELETE FROM room_type WHERE room_type_id = '$_POST[room_type_id]'";
         $result= mysqli_query($conn, $sql);
-        echo "<br><center>Record Deleted.</center>";
+        
+        $count = mysqli_affected_rows($conn);
+
+        if($count > 0){
+            echo "<br><br><center>Record Deleted Successfully ($count row(s) deleted).</center>";
+        } elseif($count == 0) {
+            echo "<br><br><center>No Room Type With {$_POST['room_type_id']}.</center>";
+        } else {
+            echo "<br><br><center>Error: Could not delete record.</center>";
+        }
     }
 }
 ?>
