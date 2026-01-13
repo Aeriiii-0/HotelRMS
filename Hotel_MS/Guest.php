@@ -14,12 +14,11 @@
     <center><h2>Guest Information</h2></center>
 
     <form action="" method="POST">
-        <center>
-            <label>Guest ID:</label> 
-            <input type="number" name="guest_id" id="guest_id"> <br><br>
-            <input type="submit" name="ViewSub" value="View" class="btn view">
-            <input type="submit" name="SearchSub" value="Search" class="btn search">
-            <br><br>
+            <label>Guest ID (for Edit/Delete/Search):</label> 
+            <input type="number" name="guest_id" id="guest_id"> 
+            
+            <input type="submit" name="SearchSub" value="Search" class="btn search" style="margin-left: 94%; margin-top: 0.7%;">
+            <br>
 
             <label>First Name:</label> 
             <input type="text" name="first_name" id="first_name"> <br><br>
@@ -29,11 +28,12 @@
             
             <label>Email Address:</label> 
             <input type="text" name="email" id="email"> <br><br>
-
+        <center>
             <div class="btn-group">
                 <input type="submit" name="InsertSub" value="Add" class="btn insert">
                 <input type="submit" name="EditSub" value="Edit" class="btn update">
                 <input type="submit" name="DeleteSub" value="Delete" class="btn delete">
+                <input type="submit" name="ViewSub" value="View" class="btn view">
                 <input type="reset" name="ResetSub" value="Reset" class="btn reset">
             </div>
         </center>
@@ -42,6 +42,7 @@
 
 <?php
 include("database.php");
+include("validation.php");
 
 if (!$conn){
     die("<center>Error connecting database: " . mysqli_connect_error() . "</center>");
@@ -51,6 +52,17 @@ if (isset($_POST['InsertSub'])){
     if(empty($_POST['first_name']) || empty($_POST['last_name']) || empty($_POST['email'])){
         die ("<br><center>Fields are incomplete</center>" );
     } else {
+
+        if(!is_word($_POST['first_name'])){
+            die("Invalid Format: First Name");
+        }
+        if(!is_word($_POST['last_name'])){
+            die("Invalid Format: Last Name");
+        }
+        if(!is_email($_POST['email'])){
+            die("Invalid Format: Email");
+        }
+
         $fname = mysqli_real_escape_string($conn, $_POST['first_name']);
         $lname = mysqli_real_escape_string($conn, $_POST['last_name']);
         $email = mysqli_real_escape_string($conn, $_POST['email']);
@@ -69,7 +81,7 @@ if (isset($_POST['InsertSub'])){
 
 if(isset($_POST['ViewSub'])){
     echo "<br><center>";
-    $sql = "SELECT * FROM guest";
+    $sql = "SELECT * FROM guest ORDER BY date_created DESC";
     $result = mysqli_query($conn, $sql);
 
     if(mysqli_num_rows($result) > 0){
@@ -111,6 +123,7 @@ if(isset($_POST['SearchSub'])){
         if(!empty($lname)) { $sql .= " OR last_name LIKE '%$lname%'"; }
         if(!empty($gid))   { $sql .= " OR guest_id = '$gid'"; }
 
+        $sql = $sql."ORDER BY date_created DESC";
         $result = mysqli_query($conn, $sql);
 
         if(mysqli_num_rows($result) > 0){
@@ -141,6 +154,17 @@ if(isset($_POST['EditSub'])){
     if(empty($_POST['guest_id']) || empty($_POST['first_name']) || empty($_POST['last_name']) || empty($_POST['email'])){
         echo "<center>Incomplete Fields for Update.</center>";
     } else {
+
+        if(!is_word($_POST['first_name'])){
+            die("Invalid Format: First Name");
+        }
+        if(!is_word($_POST['last_name'])){
+            die("Invalid Format: Last Name");
+        }
+        if(!is_email($_POST['email'])){
+            die("Invalid Format: Email");
+        }
+        
         $id = mysqli_real_escape_string($conn, $_POST['guest_id']);
         $fname = mysqli_real_escape_string($conn, $_POST['first_name']);
         $lname = mysqli_real_escape_string($conn, $_POST['last_name']);
@@ -178,7 +202,7 @@ if (isset($_POST['DeleteSub'])){
             }
         }
         catch(mysqli_sql_exception $e){
-            die("<br><br><center>Error: Cannot DELETE guest used in Reservation. Delete their reservation record(s) first</center>");
+            die("<br><br><center>Error: Cannot DELETE guest used in Reservation. Delete their reservation record(s) first.</center>");
         }
     }
 }

@@ -13,12 +13,10 @@
 <form action="" method="POST">
     <h2> Room Information</h2>
 
-    <label for="room_id">Room ID (for Edit/Delete):</label> 
-    <input type="number" name="room_id" id="room_id"> <br> <br>
+    <label for="room_id">Room ID (for Edit/Delete/Search):</label> 
+    <input type="number" name="room_id" id="room_id"> <br>
 
-    
-    <input type="submit" name="ViewSub" value="View" class="btn view">
-    <input type="submit" name="SearchSub" value="Search" class="btn search">
+    <input type="submit" name="SearchSub" value="Search" class="btn search" style="margin-left: 94%; margin-top: 0.7%;">
     <br><br>
 
     <label for="room_number">Room Number:</label> 
@@ -27,12 +25,12 @@
     <label for="room_type_id">Room Type ID:</label> 
     <input type="number" name="room_type_id" id="room_type_id"> <br> <br>
 
-    <br> <br>
     <center>
         <div class="btn-group">
             <input type="submit" name="InsertSub" value="Add" class="btn insert">
             <input type="submit" name="EditSub" value="Edit" class="btn update">
             <input type="submit" name="DeleteSub" value="Delete" class="btn delete">
+            <input type="submit" name="ViewSub" value="View" class="btn view">
             <input type="reset" name="ResetSub" value="Reset" class="btn reset">
         </div>
     </center>
@@ -41,6 +39,7 @@
 <?php
 
 include("database.php");
+include("validation.php");
 
 
 if (!$conn){
@@ -50,11 +49,12 @@ if (!$conn){
 if (isset($_POST['InsertSub'])){
     if($_POST['room_number']=='' || $_POST['room_type_id']==''){
         die ("<br><center>Fields are incomplete </center>");
-    }else if ($_POST['room_number']<=0){
-         die( "<br><center>Invalid Room Number </center>");
-    } 
-    
+    }
     else {
+
+        if (!is_valid_room($_POST['room_number'])){
+           die( "<br><center>Invalid Value: Room Number. It should be within 100 - 999. </center>");
+        }
         $room_num = mysqli_real_escape_string($conn, $_POST['room_number']);
         $type_id = mysqli_real_escape_string($conn, $_POST['room_type_id']);
 
@@ -70,7 +70,6 @@ if (isset($_POST['InsertSub'])){
         } catch(mysqli_sql_exception $e){
             die("<br><center>Error: " . $e->getMessage()."</center>");
         }
-        
     }
 }
 
@@ -179,7 +178,7 @@ if (isset($_POST['DeleteSub'])){
                 echo "<br><br><center>Error: Could not deleting record.</center>";
             }
         }catch(mysqli_sql_exception $e){
-            die("<br><br><center>Error: Cannot DELETE room used in reservation. Reassign or Remove the reservation(s) first</center>");
+            die("<br><br><center>Error: Cannot DELETE room used in reservation records. Reassign or Remove the reservation(s) first</center>");
         }
     }
 }
