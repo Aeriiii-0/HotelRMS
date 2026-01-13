@@ -505,15 +505,28 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
 
             <label>Guest First Name:</label> 
             <input type="text" name="first_name" id="first_name">
+            <span id="first_name-error" class="error-text" style="display: none; color: #E57373; font-size: 0.8rem;">
+            Please enter a First Name.
+            </span>
             
             <label>Guest Last Name:</label> 
             <input type="text" name="last_name" id="last_name">
-            
+            <span id="last_name-error" class="error-text" style="display: none; color: #E57373; font-size: 0.8rem;">
+            Please enter a Last Name.
+            </span>
+
             <label>Email:</label> 
             <input type="email" name="email" id="email">
+            <span id="email-error" class="error-text" style="display: none; color: #E57373; font-size: 0.8rem;">
+            Please enter a valid email address.
+            </span>
             
             <label>Contact Info:</label> 
             <input type="text" name="contact_info" id="contact_info" placeholder="09xxxxxxxxx" maxlength="11">
+            <span id="contact_info-error" class="error-text" style="display: none; color: #E57373; font-size: 0.8rem;">
+            Please enter a valid number address.
+            </span>
+            
             <br><br><br>
 
             <div class = "Room-type">
@@ -528,12 +541,20 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
                     <option value="Presidential Suite">Presidential Suite</option>    
                 </select>
             </div>
-            
+            <span id="room_type-error" class="error-text" style="display: none; color: #E57373; font-size: 0.8rem;">
+            Please select a room</span>
+                    
             <label>Start Date:</label> 
             <input type="date" name="start_date" id="start_date" min="<?php echo $today; ?>" onchange="updateCheckoutMinLimit()">
+            <span id="start_date-error" class="error-text" style="display: none; color: #E57373; font-size: 0.8rem;">
+            Please select a date.</span>
+            
 
             <label>End Date:</label> 
             <input type="date" name="end_date" id="end_date" min="<?php echo $today; ?>"> 
+            <span id="end_date-error" class="error-text" style="display: none; color: #E57373; font-size: 0.8rem;">
+            Please select a date.</span>
+            
 
             <br><br><br>
             <div class = "payment">
@@ -544,7 +565,9 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
                     <option value="GCASH">GCash</option>    
                 </select>
             </div>
-
+            <span id="payment_type-error" class="error-text" style="display: none; color: #E57373; font-size: 0.8rem;">
+            Please select a valid payment method.</span>
+            
             <center>
             <div class="btn-group">
                 <input type="button" name="InsertSub" value="Add" class="btn insert" onclick="showConfirmModal()">
@@ -576,8 +599,7 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
 </div>
 
 <script>
-    // This converts the PHP array into a JavaScript Object
-const roomPrices = <?php echo json_encode($price_list); ?>;
+const roomPrices = <?php echo json_encode($price_list) ?: '{}'; ?>;
 document.addEventListener('DOMContentLoaded', function() {
     addRowClickListeners();
 });
@@ -624,34 +646,57 @@ function validateForm() {
     let isValid = true;
 
     // Reset states
-    fields.forEach(id => document.getElementById(id).classList.remove('is-invalid'));
+    fields.forEach(function(fieldId) {
+        const element = document.getElementById(fieldId);
+        if (element) {
+            element.classList.remove('is-invalid');
+        }
 
-    const markInvalid = (id) => {
-        document.getElementById(id).classList.add('is-invalid');
+        
+        const errorSpan = document.getElementById(fieldId + '-error');
+        if (errorSpan){
+        errorSpan.style.display = 'block';
+        }
+     });
+
+    const markInvalid = function(fieldId) {
+        const element = document.getElementById(fieldId);
+        if (element) {
+            element.classList.add('is-invalid');
+        }
+
+        const errorSpan = document.getElementById(fieldId + '-error');
+        if (errorSpan) {
+            errorSpan.style.display = 'block';
+        }
+
         isValid = false;
     };
+    
 
-    // Get Values
-    const email = document.getElementById('email').value;
-    const contact = document.getElementById('contact_info').value;
-    const fName = document.getElementById('first_name').value;
-    const lName = document.getElementById('last_name').value;
+    // Grab and Trim Values
+    const email = document.getElementById('email').value.trim();
+    const contact = document.getElementById('contact_info').value.trim();
+    const fName = document.getElementById('first_name').value.trim();
+    const lName = document.getElementById('last_name').value.trim();
     const start = new Date(document.getElementById('start_date').value);
     const end = new Date(document.getElementById('end_date').value);
 
-    // Run Logic
+    // Run Logic Checks
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) markInvalid('email');
     if (!/^09\d{9}$/.test(contact)) markInvalid('contact_info');
     if (!/^[a-zA-Z\s\-]+$/.test(fName)) markInvalid('first_name');
     if (!/^[a-zA-Z\s\-]+$/.test(lName)) markInvalid('last_name');
-    if (end <= start) markInvalid('end_date');
+    
+    // Date validity check
+    if (!document.getElementById('start_date').value || !document.getElementById('end_date').value || end <= start) {
+        markInvalid('start_date');
+        markInvalid('end_date');
+    }
+
+    // Dropdown checks
     if (document.getElementById('room_type').value === "") markInvalid('room_type');
     if (document.getElementById('payment_type').value === "") markInvalid('payment_type');
-
-    // Check for any empty field
-    fields.forEach(id => {
-        if (!document.getElementById(id).value) markInvalid(id);
-    });
 
     return isValid;
 }
