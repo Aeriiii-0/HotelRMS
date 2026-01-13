@@ -234,3 +234,11 @@ Base button style .pagination a {
   font-weight: bold;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
 }
+.is-invalid {
+  border: 2px solid #ef9a9a !important;
+  background-color: #fff5f5 !important;
+}
+
+.is-invalid:focus {
+  box-shadow: 0 0 5px rgba(239, 154, 154, 0.5);
+}

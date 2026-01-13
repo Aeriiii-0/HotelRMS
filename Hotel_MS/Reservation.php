@@ -19,33 +19,122 @@ if (!$conn){
 }
 
 // ============================================================================
+// LIST FOR JAVASCRIPT
+// ============================================================================
+$today = date('Y-m-d');
+$price_query = "SELECT room_type, room_price FROM room_type";
+$price_result = mysqli_query($conn, $price_query);
+$price_list = [];
+while($row = mysqli_fetch_assoc($price_result)) {
+    $price_list[$row['room_type']] = $row['room_price'];
+}
+
+
+// ============================================================================
 // ADD RESERVATION
 // ============================================================================
-if (isset($_POST['InsertSub'])){
-    if($_POST['guest_id']=='' || $_POST['room_id']=='' || $_POST['start_date']=='' || $_POST['end_date']=='' || $_POST['contact_info']==''){
-        echo "<br><center>Fields are incomplete</center>";
+if (isset($_POST['InsertSub'])) {
+    $errors = [];
+
+    $required_fields = ['first_name', 'last_name', 'email', 'contact_info', 'room_type', 'start_date', 'end_date', 'payment_type'];
+    foreach ($required_fields as $field) {
+        if (empty($_POST[$field])) {
+            $errors[] = "All fields are required.";
+            break;
+        }
     }
-    else{
+
+    if (empty($errors)) {
+        if (!filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
+            $errors[] = "Invalid email format.";
+        }
+        if (!preg_match('/^09\d{9}$/', $_POST['contact_info'])) {
+            $errors[] = "Contact must be a valid 11-digit PH number (09xxxxxxxxx).";
+        }
+        if (!preg_match('/^[a-zA-Z\s\-]+$/', $_POST['first_name']) || !preg_match('/^[a-zA-Z\s\-]+$/', $_POST['last_name'])) {
+            $errors[] = "Names should only contain letters.";
+        }
+        
+        $start = new DateTime($_POST['start_date']);
+        $end = new DateTime($_POST['end_date']);
+        if ($end <= $start) {
+            $errors[] = "End date must be after start date.";
+        }
+    }
+
+    if (!empty($errors)) {
+        echo "<div class='notif' style='background: #EF9A9A; color: #721c24;'>" . $errors[0] . "</div>";
+    } else {
         // FIXED: Escape inputs and add contact_info parameter
-        $guest_id = mysqli_real_escape_string($conn, $_POST['guest_id']);
-        $room_id = mysqli_real_escape_string($conn, $_POST['room_id']);
-        $start_date = mysqli_real_escape_string($conn, $_POST['start_date']);
-        $end_date = mysqli_real_escape_string($conn, $_POST['end_date']);
+        $first_name = mysqli_real_escape_string($conn, $_POST['first_name']);
+        $last_name = mysqli_real_escape_string($conn, $_POST['last_name']);
+        $email = mysqli_real_escape_string($conn, $_POST['email']);
+        $start_date = mysqli_real_escape_string($conn, $_POST['start_date']).' 14:00';
+        $end_date = mysqli_real_escape_string($conn, $_POST['end_date']).' 12:00';
         $contact_info = mysqli_real_escape_string($conn, $_POST['contact_info']);
+        $payment = mysqli_real_escape_string($conn,$_POST['payment_type']);
         
         //ATTENTION FIX THIS: NEEDS PAYMENT AND WILL BE UPDATED TO INCLUDE THE NAMES AND DETAILS OF THE GUEST
         //$call_procedure = "CALL sp_make_reservation_with_payment($guest_id, $room_id,'$contact_info', '$start_date', '$end_date',)";
         
-        $call_procedure = "CALL make_reservation($guest_id, $room_id, '$start_date', '$end_date', '$contact_info')";
+        //Checks the availability of room
+        $check_avail_room = "CALL sp_get_available_rooms('$start_date','$end_date',0)";
+        $check_avail_result = mysqli_query($conn,$check_avail_room);
+
+        if($row = mysqli_fetch_assoc($check_avail_result)){
+            $room_id = $row['room_id'];
+            $room_price = $row['room_price'];
+            
+            while(mysqli_more_results($conn)) {
+                mysqli_next_result($conn);
+            }
+
+            $start_stay = new DateTime($_POST['start_date']);
+            $end_stay = new DateTime($_POST['end_date']);
+
+            // 2. Calculate the difference
+            $interval = date_diff($start_stay,$end_stay);
+            $nights = $interval->days;
+
+            // 3. Ensure at least 1 night is charged (if dates are same-day or weird)
+            if ($nights <= 0) { $nights = 1; }
+
+            // 4. Calculate Total Cost
+            $total_cost = $nights * $room_price;
+        }
+        //Checks Guest
+        $check_guest_procedure = "CALL sp_get_or_create_guest('$email','$first_name','$last_name')";
+        $check_guest_result = mysqli_query($conn,$check_guest_procedure);
+        
+        if($row = mysqli_fetch_assoc($check_guest_result)){
+            $guest_id = $row['guest_id'];
+
+            while(mysqli_more_results($conn)) {
+                mysqli_next_result($conn);
+            }
+        }
+
+
+
+        $call_procedure = "CALL sp_make_reservation_with_payment($guest_id, $room_id,'$contact_info', '$start_date', '$end_date',$room_price,'$payment')";
         $proc_result = mysqli_query($conn, $call_procedure);
         
         if($proc_result){
             $proc_data = mysqli_fetch_assoc($proc_result);
             
             if (isset($proc_data['message'])) {
-                echo "<br><center><span style='color: #E57373;'>".$proc_data['message']."</span></center>";
-            } else if (isset($proc_data['reservation_id'])) {
-                echo "<br><center><span style='color: #81C784;'>Reservation Added. Reservation ID: ".$proc_data['reservation_id']."</span></center>";
+            $isSuccess = (stripos($proc_data['message'], 'Success') !== false);
+            
+            $color = $isSuccess ? '#81C784' : '#E57373';
+
+            echo "<br><center><span style='color: $color; font-weight: bold;'>";
+            echo $proc_data['message'];
+            
+            if ($isSuccess && isset($proc_data['reservation_id'])) {
+                echo " (ID: " . $proc_data['reservation_id'] . ")";
+            }
+            
+            echo "</span></center>";
             }
             
             // Clear stored procedure results
@@ -429,7 +518,7 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
 
             <div class = "Room-type">
                 <label>Room Type:</label> 
-                <select>
+                <select name="room_type" id="room_type">
                     <option value="">Select a Room Type</option>
                     <option value="Standard Single">Standard Single</option>    
                     <option value="Standard Double">Standard Double</option>    
@@ -441,30 +530,24 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
             </div>
             
             <label>Start Date:</label> 
-            <input type="date" name="start_date" id="start_date">
+            <input type="date" name="start_date" id="start_date" min="<?php echo $today; ?>" onchange="updateCheckoutMinLimit()">
 
             <label>End Date:</label> 
-            <input type="date" name="end_date" id="end_date"> 
+            <input type="date" name="end_date" id="end_date" min="<?php echo $today; ?>"> 
 
             <br><br><br>
-
-            <label>End Date:</label> 
-            <div class = "Room-type">
-                <label>Room Type:</label> 
-                <select>
-                    <option value="">Select a Room Type</option>
-                    <option value="Standard Single">Standard Single</option>    
-                    <option value="Standard Double">Standard Double</option>    
-                    <option value="Deluxe King">Deluxe King</option>
-                    <option value="Junior Suite">Junior Suite</option>    
-                    <option value="Executive Suite">Executive Suite</option>    
-                    <option value="Presidential Suite">Presidential Suite</option>    
+            <div class = "payment">
+                <label>Mode of Payment:</label> 
+                <select name="payment_type" id ="payment_type">
+                    <option value="">Select Payment Method</option>
+                    <option value="CASH">Cash</option>    
+                    <option value="GCASH">GCash</option>    
                 </select>
             </div>
 
             <center>
             <div class="btn-group">
-                <input type="submit" name="InsertSub" value="Add" class="btn insert">
+                <input type="button" name="InsertSub" value="Add" class="btn insert" onclick="showConfirmModal()">
                 <input type="submit" name="ConfirmSub" value="Confirm" class="btn update" style="background: #90CAF9;">
                 <input type="submit" name="CancelSub" value="Cancel Res" class="btn delete" style="background: #EF9A9A;">
                 <input type="reset" name="ResetSub" value="Reset" class="btn reset">
@@ -493,6 +576,8 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
 </div>
 
 <script>
+    // This converts the PHP array into a JavaScript Object
+const roomPrices = <?php echo json_encode($price_list); ?>;
 document.addEventListener('DOMContentLoaded', function() {
     addRowClickListeners();
 });
@@ -528,7 +613,143 @@ function addRowClickListeners() {
         });
     });
 }
-</script>
+document.getElementById('reservationForm').addEventListener('submit', function(e) {
+    if (!validateForm()) {
+        e.preventDefault(); // Stop the form from submitting
+    }
+});
 
+function validateForm() {
+    const fields = ['first_name', 'last_name', 'email', 'contact_info', 'room_type', 'start_date', 'end_date', 'payment_type'];
+    let isValid = true;
+
+    // Reset states
+    fields.forEach(id => document.getElementById(id).classList.remove('is-invalid'));
+
+    const markInvalid = (id) => {
+        document.getElementById(id).classList.add('is-invalid');
+        isValid = false;
+    };
+
+    // Get Values
+    const email = document.getElementById('email').value;
+    const contact = document.getElementById('contact_info').value;
+    const fName = document.getElementById('first_name').value;
+    const lName = document.getElementById('last_name').value;
+    const start = new Date(document.getElementById('start_date').value);
+    const end = new Date(document.getElementById('end_date').value);
+
+    // Run Logic
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) markInvalid('email');
+    if (!/^09\d{9}$/.test(contact)) markInvalid('contact_info');
+    if (!/^[a-zA-Z\s\-]+$/.test(fName)) markInvalid('first_name');
+    if (!/^[a-zA-Z\s\-]+$/.test(lName)) markInvalid('last_name');
+    if (end <= start) markInvalid('end_date');
+    if (document.getElementById('room_type').value === "") markInvalid('room_type');
+    if (document.getElementById('payment_type').value === "") markInvalid('payment_type');
+
+    // Check for any empty field
+    fields.forEach(id => {
+        if (!document.getElementById(id).value) markInvalid(id);
+    });
+
+    return isValid;
+}
+
+function showConfirmModal() {
+    if (!validateForm()) return; 
+
+    // 1. Grab values
+    const fName = document.getElementById('first_name').value;
+    const lName = document.getElementById('last_name').value;
+    const email = document.getElementById('email').value;
+    const roomType = document.getElementById('room_type').value;
+    const start = document.getElementById('start_date').value;
+    const end = document.getElementById('end_date').value;
+    const payment = document.getElementById('payment_type').value;
+    
+    const nights = calculateNights();
+    const pricePerNight = roomPrices[roomType] || 0;
+    const totalCost = nights * pricePerNight;
+    
+    const summary = `
+        <div style="line-height: 1.8;">
+            <p><strong>Guest:</strong> ${fName} ${lName}</p>
+            <p><strong>Stay:</strong> ${nights} Night(s)</p>
+            <p><strong>Room Type:</strong> ${roomType}</p>
+            <p><strong>Price Per Night:</strong> ₱${Number(pricePerNight).toLocaleString()}</p>
+            <hr>
+            <p><strong>Total Estimate:</strong> ₱${Number(totalCost).toLocaleString()}</p>
+            <p><strong>Payment Method:</strong> ${payment}</p>
+        </div>
+        <hr>
+        <p class="text-muted small">Please verify these details before proceeding.</p>
+    `;
+
+    document.getElementById('modalBodyContent').innerHTML = summary;
+        var myModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    myModal.show();
+}
+function submitFinalForm() {
+   const form = document.getElementById('reservationForm');
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.name = 'InsertSub';
+    hiddenInput.value = '1';
+    form.appendChild(hiddenInput);
+    
+    form.submit();
+}
+function calculateNights() {
+    const startDateVal = document.getElementById('start_date').value;
+    const endDateVal = document.getElementById('end_date').value;
+
+    if (!startDateVal || !endDateVal) return 0;
+
+    const start = new Date(startDateVal);
+    const end = new Date(endDateVal);
+
+    const diffTime = end - start;
+
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return diffDays > 0 ? diffDays : 0;
+}
+
+function updateCheckoutMinLimit() {
+    const startDate = document.getElementById('start_date');
+    const endDate = document.getElementById('end_date');
+
+    if (startDate.value) {
+        let checkinDate = new Date(startDate.value);
+        let nextDay = new Date(checkinDate);
+        nextDay.setDate(nextDay.getDate() + 1); 
+        
+        const minCheckoutStr = nextDay.toISOString().split('T')[0];
+        endDate.min = minCheckoutStr; 
+
+        if (endDate.value && endDate.value < minCheckoutStr) {
+            endDate.value = minCheckoutStr;
+        }
+    }
+    calculateNights(); 
+}
+</script>
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirm Reservation Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="modalBodyContent">
+        </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Edit Details</button>
+        <button type="button" class="btn btn-success" onclick="submitFinalForm()">Confirm & Save</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
