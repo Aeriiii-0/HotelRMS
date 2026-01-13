@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pristine-Coast Whale Hotel - Payments</title>
-    <link rel="stylesheet" href="Style.css">
+    <link rel="stylesheet" href="hotel-Style.css">
 </head>
 <body>
     

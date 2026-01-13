@@ -23,6 +23,10 @@
     <title>Events</title>
 
     <style>
+      p{
+        font-family: 'Georgia', serif; 
+
+      }
       .image-container {
         position: relative;
         width: 100%;
@@ -150,9 +154,9 @@
         </div>
       </div>
     </div>
-    <br />
+    <br>
 
-    <div class="container-fluid" style="background-color: #44210fe7">
+    <div class="container-fluid" style="background-color: #9f8681">
       <div class="container" style="padding-top: 20px; padding-bottom: 20px">
         <br />
         <h2 style="color: antiquewhite">
