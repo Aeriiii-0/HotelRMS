@@ -433,16 +433,9 @@ $room_result = mysqli_query($conn, $room_sql);
 
 // Statistics query
 $stats_sql = "SELECT 
-    -- 1. Guests currently in their rooms
     SUM(CASE WHEN r.reservation_status = 'CHECKED IN' THEN 1 ELSE 0 END) AS currently_checked_in,
-
-    -- 2. Guests expected to arrive today
     SUM(CASE WHEN DATE(r.start_date) = CURDATE() AND r.reservation_status IN ('PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS arrivals_today,
-
-    -- 3. Guests expected to leave today
     SUM(CASE WHEN DATE(r.end_date) = CURDATE() AND r.reservation_status = 'CHECKED IN' THEN 1 ELSE 0 END) AS departures_today,
-
-    -- 4. Total Rooms minus Busy Rooms = Available Rooms
     (SELECT COUNT(*) FROM room) - 
     COUNT(DISTINCT CASE WHEN r.reservation_status NOT IN ('CANCELLED', 'CHECKED OUT') 
           AND CURDATE() BETWEEN DATE(r.start_date) AND DATE(r.end_date) 
@@ -495,9 +488,16 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
             </div>
             
             
-            <div class="btn-group-centered" style="margin-top: 10px;">
+            <div class="d-flex justify-content-between w-100">
+                <div class="d-flex gap-2">
                 <input type="submit" name="ViewSub" value="View" class="btn view">
                 <input type="submit" name="SearchSub" value="Search" class="btn search">
+                </div>
+                
+                <div class="d-flex gap-2">
+                <input type="submit" name="ConfirmSub" value="Confirm" class="btn update" style="background: #90CAF9;">
+                <input type="submit" name="CancelSub" value="Cancel Res" class="btn delete" style="background: #EF9A9A;">
+                </div>
             </div>
             <br><br>
             <h2>Reservation Management</h2>
@@ -571,8 +571,7 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
             <center>
             <div class="btn-group">
                 <input type="button" name="InsertSub" value="Add" class="btn insert" onclick="showConfirmModal()">
-                <input type="submit" name="ConfirmSub" value="Confirm" class="btn update" style="background: #90CAF9;">
-                <input type="submit" name="CancelSub" value="Cancel Res" class="btn delete" style="background: #EF9A9A;">
+                
                 <input type="reset" name="ResetSub" value="Reset" class="btn reset">
             
             </div>
@@ -635,11 +634,6 @@ function addRowClickListeners() {
         });
     });
 }
-document.getElementById('reservationForm').addEventListener('submit', function(e) {
-    if (!validateForm()) {
-        e.preventDefault(); // Stop the form from submitting
-    }
-});
 
 function validateForm() {
     const fields = ['first_name', 'last_name', 'email', 'contact_info', 'room_type', 'start_date', 'end_date', 'payment_type'];
@@ -655,7 +649,7 @@ function validateForm() {
         
         const errorSpan = document.getElementById(fieldId + '-error');
         if (errorSpan){
-        errorSpan.style.display = 'block';
+        errorSpan.style.display = 'none';
         }
      });
 
