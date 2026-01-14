@@ -194,7 +194,7 @@ center {
   color: #4a4a4a;
 }
 /* Container to center the buttons */
-.pagination {
+.hotel-pagination {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -203,7 +203,8 @@ center {
   text-align: center;
 }
 
-Base button style .pagination a {
+/* Base button style */
+.hotel-pagination a {
   text-decoration: none;
   padding: 10px 18px;
   border: 2px solid #d4c9ba;
@@ -218,7 +219,7 @@ Base button style .pagination a {
 }
 
 /* Hover effect */
-.pagination a:hover {
+.hotel-pagination a:hover {
   background-color: #e8e3d6;
   border-color: #b8a894;
   transform: translateY(-2px);
@@ -226,7 +227,7 @@ Base button style .pagination a {
 }
 
 /* Active page button */
-.pagination a.active {
+.hotel-pagination a.active {
   background-color: #8fa78e;
   color: white;
   border-color: #7a9279;

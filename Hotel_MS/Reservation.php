@@ -304,7 +304,7 @@ if(isset($_REQUEST['ViewSub']) || isset($_REQUEST['SearchSub']) || isset($_GET['
         }
         echo "</table><br>";
 
-        echo "<div class='pagination'>";
+        echo "<div class='hotel-pagination'>";
         echo "\n";
         
         // Previous arrow
