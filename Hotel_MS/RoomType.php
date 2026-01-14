@@ -74,8 +74,11 @@ if (isset($_POST['InsertSub'])){
             }
         } 
         catch(mysqli_sql_exception $e){
-
-                die("<br><br><center>Error: " . $e->getMessage()."</center>");
+            if ($e->getCode() == 1062){
+                die("<br><br><center>Error:  This Room Type name is already exist</center>");
+            } else{
+                 die("<br><br><center>Error: " . $e->getMessage()."</center>");
+            }
         }
     }
 }
@@ -197,10 +200,14 @@ if(isset($_POST['EditSub'])){
             }
         }
         catch(mysqli_sql_exception $e){
-            die("<br><br><center>Error: " . $e->getMessage()."</center>");
+            if ($e->getCode() == 1062){
+                die("<br><br><center>Error:  This Room Type name is already exist</center>");
+            } else{
+                 die("<br><br><center>Error: " . $e->getMessage()."</center>");
+            }
+        }
         }
     }
-}
 if (isset($_POST['DeleteSub'])){
      if($_POST['room_type_id']==''){
         echo "<center>Incomplete Fields.</center>";

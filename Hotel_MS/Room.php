@@ -64,9 +64,10 @@ if (isset($_POST['InsertSub'])){
                     echo "<br><center>Room Added Successfully.</center>";
                 } 
             } catch(mysqli_sql_exception $e){
-                // TARGETING THE CONSTRAINT ERROR
                 if ($e->getCode() == 1452) {
-                    echo "<br><center>Error:The Room Type ID ($type_id) does not exist. Please check the Room Type table.</center>";
+                    echo "<br><center>Error: Cannot update. Room Type ID ($_POST[room_type_id]) is invalid.</center>";
+                } else if($e->getCode() == 1062){
+                    echo "<br><center>Error: This room room number already exist</center>";
                 } else {
                     echo "<br><center>Error: " . $e->getMessage()."</center>";
                 }
@@ -155,9 +156,11 @@ if(isset($_POST['EditSub'])){
             }
         }
         catch (mysqli_sql_exception $e){
-            // TARGETING THE CONSTRAINT ERROR HERE TOO
+            
             if ($e->getCode() == 1452) {
                 echo "<br><center>Error: Cannot update. Room Type ID ($tid) is invalid.</center>";
+            } else if($e->getCode() == 1062){
+                echo "<br><center>Error: This room room number already exist</center>";
             } else {
                 echo "<br><center>Error: " . $e->getMessage()."</center>";
             }

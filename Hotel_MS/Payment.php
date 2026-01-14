@@ -55,6 +55,9 @@ if (isset($_POST['InsertSub'])){
         echo "<br><center>Fields are incomplete </center>";
     }
     else{
+        if ($_POST['amount']<0){
+            die("Invalid Value: Amount should not be less than 0");
+        }
         try {
             $sql = "INSERT INTO payment (amount, reservation_id, payment_method) 
                     VALUES ('$_POST[amount]', '$_POST[reservation_id]', '$_POST[payment_method]')";
@@ -63,7 +66,11 @@ if (isset($_POST['InsertSub'])){
                 echo "<br><center>Payment Added Successfully.</center>";
             }
         } catch(mysqli_sql_exception $e) {
-            die( "<br><br><center>Error: ".$e->getMessage()."</center>");
+            if ($e->getCode() == 1452) {
+                    echo "<br><center>Error: Cannot update. Reservation ID ($_POST[reservation_id]) is invalid.</center>";
+                } else {
+                    echo "<br><center>Error: " . $e->getMessage()."</center>";
+                }
         }
     }
 }
@@ -108,7 +115,7 @@ if(isset($_POST['SearchSub'])){
     else{
 
         if($_POST['payment_id'] <= 0){
-              die("<br><center>Invalid Value: Payment should not be less than or equal to 0.</center>");
+              die("<br><center>Invalid Value: Payment should not be less than 0.</center>");
         }
         echo "<center><br>";
         $sql = "SELECT * FROM payment WHERE payment_id = '$_POST[payment_id]' ORDER BY date_created DESC";
@@ -144,7 +151,7 @@ if(isset($_POST['EditSub'])){
         echo "<center>Please provide ID and all fields to update.</center>";
     }
     else{
-        if($_POST['payment_id'] <= 0){
+        if($_POST['payment_id'] < 0){
               die("<br><center>Invalid Value: Payment should not be less than or equal to 0.</center>");
         }
         try {
@@ -159,7 +166,11 @@ if(isset($_POST['EditSub'])){
                 echo "<br><center>No changes made or ID not found.</center>";
             }
         } catch(mysqli_sql_exception $e) {
-            die( "<br><br><center>Error: ".$e->getMessage() ."</center>");
+              if ($e->getCode() == 1452) {
+                    echo "<br><center>Error: Cannot update. Reservation ID ($_POST[reservation_id]) is invalid.</center>";
+                } else {
+                    echo "<br><center>Error: " . $e->getMessage()."</center>";
+                }   
         }
     }
 }

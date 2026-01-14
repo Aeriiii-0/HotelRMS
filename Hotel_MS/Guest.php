@@ -189,7 +189,11 @@ if(isset($_POST['EditSub'])){
                 echo "<br><center>No changes made or Guest ID not found.</center>";
             }
         }catch(mysqli_sql_exception $e){
-                die("<br><br><center>Error: " . $e->getMessage()."</center>");
+            if ($e->getCode() == 1062){
+                die("<br><br><center>Error: This email is already taken.</center>");
+            }else{
+                 die("<br><br><center>Error: " . $e->getMessage()."</center>");
+            }
         }
         
     }

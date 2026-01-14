@@ -512,7 +512,7 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
                 </div>
             </div>
             <br><br>
-            <h2>Reservation Management</h2>
+            <!-- <h2>Reservation Management</h2>
 
 
             <label>Guest First Name:</label> 
@@ -588,17 +588,17 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
             
             </div>
             <br><br>
-            </center>
+            </center> -->
         </form>
     </div>
     <div>
         <br>
-        <h2>Pending Count</h2>
+        <h2>Reservation Count</h2>
         <table border="1" cellpadding="10" cellspacing="0">
             <tr>
-                <th>Pending</th>
-                <th>Unprocessed</th>
-                <th>Total this month</th>
+                <th>Current Pending</th>
+                <th>Total Unprocessed this month</th>
+                <th>Total Reservation this month</th>
             </tr>
             <tr>
                 <td><?php echo $pending_result['PENDING']?></td>
@@ -608,6 +608,73 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
         </table>
     </div>
 </div>
+<br>
+<br>
+    <form method="POST"> 
+    <h2>Search Available Room</h2>
+    <label>Start Date:</label> 
+    <input type="date" name="start_date" id="start_date" min="<?php echo $today; ?>" onchange="updateCheckoutMinLimit()">
+    
+    <label>End Date:</label> 
+    <input type="date" name="end_date" id="end_date" min="<?php echo $today; ?>"> 
+
+    <center>
+        <br>
+        <input type="submit" name="check_avail" class="btn search">
+        <br>
+    </center>
+</form>
+     <?php
+        if (isset($_POST['check_avail'])) {
+    $start = $_POST['start_date'];
+    $end = $_POST['end_date'];
+    $capacity = 0;
+
+    
+    if ($start >= $end) {
+        echo "<center><p style='color:red;'>Error: End date must be after start date.</p></center>";
+    } else {
+        try {
+           
+            $sql = "CALL sp_get_available_rooms(?, ?, ?)";
+            $stmt = mysqli_prepare($conn, $sql);
+            mysqli_stmt_bind_param($stmt, "ssi", $start, $end, $capacity);
+            mysqli_stmt_execute($stmt);
+            $result = mysqli_stmt_get_result($stmt);
+
+            if (mysqli_num_rows($result) > 0) {
+                echo "<center><h4>Available Rooms from $start to $end</h4>";
+                echo "<table border='1' cellpadding='10' style='border-collapse: collapse;'>
+                        <tr>
+                            <th>Room #</th>
+                            <th>Type</th>
+                            <th>Price</th>
+                            <th>Capacity</th>
+                        </tr>";
+
+                while ($row = mysqli_fetch_assoc($result)) {
+                    echo "<tr>
+                            <td>" . $row['room_number'] . "</td>
+                            <td>" . $row['room_type'] . "</td>
+                            <td>₱" . number_format($row['room_price'], 2) . "</td>
+                            <td>" . $row['guest_capacity'] . "</td>
+                          </tr>";
+                }
+                echo "</table></center>";
+            } else {
+                echo "<center><p>No rooms available for these dates/capacity.</p></center>";
+            }
+            
+            mysqli_stmt_close($stmt);
+            
+            while(mysqli_next_result($conn)){}; 
+
+        } catch (mysqli_sql_exception $e) {
+            echo "<center>Error: " . $e->getMessage() . "</center>";
+        }
+    }
+}
+     ?>
 
 <script>
 const roomPrices = <?php echo json_encode($price_list) ?: '{}'; ?>;
@@ -803,4 +870,8 @@ function updateCheckoutMinLimit() {
   </div>
 </div>
 </body>
+    <?php
+
+?>
 </html>
+
