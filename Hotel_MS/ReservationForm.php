@@ -20,116 +20,180 @@ while ($row = mysqli_fetch_assoc($room_type_result)) {
     $room_types[$row['room_type_id']] = $row;
 }
 
-if (isset($_POST['SubmitBooking'])) {
-    if (empty($_POST['first_name']) || empty($_POST['last_name']) || 
-        empty($_POST['email_address']) || empty($_POST['start_date']) || empty($_POST['end_date'])) {
-        $booking_message = "Please complete all fields.";
-        $booking_status = "error";
-    } else {
-        $first_name = mysqli_real_escape_string($conn, $_POST['first_name']);
-        $last_name = mysqli_real_escape_string($conn, $_POST['last_name']);
-        $email = mysqli_real_escape_string($conn, $_POST['email_address']);
-        $start_date = mysqli_real_escape_string($conn, $_POST['start_date']);
-        $end_date = mysqli_real_escape_string($conn, $_POST['end_date']);
-        $payment_method = 'CASH';
-        
-        $room_numbers = isset($_POST['room_number']) ? $_POST['room_number'] : [];
-        $amounts = isset($_POST['amount']) ? $_POST['amount'] : [];
-        
-        if (empty($room_numbers) || count($room_numbers) == 0) {
-            $booking_message = "Please add at least one room to book.";
+try{
+    if (isset($_POST['SubmitBooking'])) {
+        $errors = [];
+
+        if (empty($_POST['first_name']) || empty($_POST['last_name']) || 
+            empty($_POST['email_address']) || empty($_POST['start_date']) || empty($_POST['end_date']) || empty($_POST['contact_info'])) {
+            $booking_message = "Please complete all fields.";
             $booking_status = "error";
         } else {
-            $start_datetime = new DateTime($start_date);
-            $end_datetime = new DateTime($end_date);
-            $now = new DateTime();
+            $first_name = mysqli_real_escape_string($conn, $_POST['first_name']);
+            $last_name = mysqli_real_escape_string($conn, $_POST['last_name']);
+            $email = mysqli_real_escape_string($conn, $_POST['email_address']);
+            $start_date_raw = mysqli_real_escape_string($conn, $_POST['start_date']);
+            $end_date_raw = mysqli_real_escape_string($conn, $_POST['end_date']);
+                $start_date = $start_date_raw.' 14:00:00';
+                $end_date = $end_date_raw.' 12:00:00';
+            $contact = mysqli_real_escape_string($conn, $_POST['contact_info']);
+            $payment_method = 'CASH';
             
-            if ($start_datetime < $now || $start_datetime >= $end_datetime) {
-                $booking_message = "Sorry, the selected dates are not valid for this reservation.";
+            $room_numbers = isset($_POST['room_number']) ? $_POST['room_number'] : [];
+            $amounts = isset($_POST['amount']) ? $_POST['amount'] : [];
+                
+            if (!preg_match('/^09\d{9}$/', $_POST['contact_info'])) {
+                $errors[] = "Contact must be a valid 11-digit PH number (09xxxxxxxxx).";
+            }
+            if (!preg_match('/^[a-zA-Z\s\-]+$/', $_POST['first_name']) || !preg_match('/^[a-zA-Z\s\-]+$/', $_POST['last_name'])) {
+                $errors[] = "Names should only contain letters.";
+            }
+
+            if (empty($room_numbers) || count($room_numbers) == 0) {
+                $booking_message = "Please add at least one room to book.";
                 $booking_status = "error";
             } else {
-                $sql_is_guest_new = "SELECT guest_id FROM guest WHERE email = '$email' LIMIT 1";
-                $has_new_guest = mysqli_query($conn, $sql_is_guest_new);
+                $start_datetime = new DateTime($start_date);
+                $end_datetime = new DateTime($end_date);
+                $now = new DateTime();
                 
-                $new_guest_id = "";
-                if (mysqli_num_rows($has_new_guest) > 0) {
-                    $row = mysqli_fetch_assoc($has_new_guest);
-                    $new_guest_id = $row['guest_id'];
-                } else {
-                    $sql_guest = "INSERT INTO guest (first_name, last_name, email) VALUES ('$first_name', '$last_name', '$email')";
-                    if (mysqli_query($conn, $sql_guest)) {
-                        $new_guest_id = mysqli_insert_id($conn);
-                    }
-                }
-                
-                $success_count = 0;
-                $reservation_ids = [];
-                $errors = [];
-                
-                foreach ($room_numbers as $index => $room_number) {
-                    $room_number = mysqli_real_escape_string($conn, $room_number);
-                    $amount = isset($amounts[$index]) ? mysqli_real_escape_string($conn, $amounts[$index]) : 0;
-                    
-                    if (empty($room_number)) continue;
-                    
-                    $room_query = "SELECT room_id, room_type_id FROM room WHERE room_number = '$room_number' LIMIT 1";
-                    $room_result = mysqli_query($conn, $room_query);
-                    
-                    if (mysqli_num_rows($room_result) > 0) {
-                        $room_data = mysqli_fetch_assoc($room_result);
-                        $room_id = $room_data['room_id'];
-                        
-                        $availability_check = "SELECT room_id 
-                                              FROM reservation 
-                                              WHERE room_id = '$room_id'
-                                              AND reservation_status NOT IN ('CANCELLED', 'CHECKED OUT')
-                                              AND (
-                                                  (start_date <= '$end_date' AND end_date >= '$start_date')
-                                              )";
-                        $availability_result = mysqli_query($conn, $availability_check);
-                        
-                        if (mysqli_num_rows($availability_result) > 0) {
-                            $errors[] = "Room $room_number is not available for the selected dates.";
-                        } else {
-                            $reservation_status = 'CONFIRMED';
-                            $contact = '';
-                            
-                            $sql_reservation = "INSERT INTO reservation (guest_id, room_id, contact_info, start_date, end_date, reservation_status) 
-                                               VALUES ('$new_guest_id', '$room_id', '$contact', '$start_date', '$end_date', '$reservation_status')";
-                            
-                            if (mysqli_query($conn, $sql_reservation)) {
-                                $new_res_id = mysqli_insert_id($conn);
-                                
-                                $sql_pay = "INSERT INTO payment (amount, reservation_id, payment_method) VALUES ('$amount', '$new_res_id', '$payment_method')";
-                                
-                                if (mysqli_query($conn, $sql_pay)) {
-                                    $success_count++;
-                                    $reservation_ids[] = $new_res_id;
-                                } else {
-                                    $errors[] = "Error processing payment for room $room_number: " . mysqli_error($conn);
-                                }
-                            } else {
-                                $errors[] = "Error creating reservation for room $room_number: " . mysqli_error($conn);
-                            }
-                        }
-                    } else {
-                        $errors[] = "Room number $room_number not found.";
-                    }
-                }
-                
-                if ($success_count > 0) {
-                    $booking_message = "Successfully booked $success_count room(s)! Reservation IDs: " . implode(', ', $reservation_ids) . ". Payment Status: PAID via CASH";
-                    if (count($errors) > 0) {
-                        $booking_message .= " | Errors: " . implode('; ', $errors);
-                    }
-                    $booking_status = "success";
-                } else {
-                    $booking_message = "No rooms were booked. " . implode('; ', $errors);
+                if ($start_datetime < $now || $start_datetime >= $end_datetime) {
+                    $booking_message = "Sorry, the selected dates are not valid for this reservation.";
                     $booking_status = "error";
+                } else {
+                    // $sql_is_guest_new = "SELECT guest_id FROM guest WHERE email = '$email' LIMIT 1";
+                    $sql_is_guest_new = "CALL sp_get_or_create_guest('$email','$first_name','$last_name')";
+                    $has_new_guest = mysqli_query($conn, $sql_is_guest_new);
+                    
+                    $new_guest_id = "";
+                    if ($row = mysqli_fetch_assoc($has_new_guest)) {
+                        $new_guest_id = $row['guest_id'];
+                       while(mysqli_more_results($conn)) {
+                        mysqli_next_result($conn);
+                        }
+                    }
+
+                    //  else {
+                    //     $sql_guest = "INSERT INTO guest (first_name, last_name, email) VALUES ('$first_name', '$last_name', '$email')";
+                    //     if (mysqli_query($conn, $sql_guest)) {
+                    //         $new_guest_id = mysqli_insert_id($conn);
+                    //     }
+                    // }
+                    
+                    $success_count = 0;
+                    $reservation_ids = [];
+                    
+                    mysqli_begin_transaction($conn);
+                    $all_successful = true;
+                    $reservation_ids = [];
+                    $errors = [];
+
+                    foreach ($room_numbers as $index => $room_number) {
+                        $room_number = mysqli_real_escape_string($conn, $room_number);
+                        $amount = isset($amounts[$index]) ? mysqli_real_escape_string($conn, $amounts[$index]) : 0;
+                        
+                        if (empty($room_number)) continue;
+                        
+                        $room_query = "SELECT room_id, room_type_id FROM room WHERE room_number = '$room_number' LIMIT 1";
+                        $room_result = mysqli_query($conn, $room_query);
+                        
+                        if (mysqli_num_rows($room_result) > 0) {
+                            $room_data = mysqli_fetch_assoc($room_result);
+                            $room_id = $room_data['room_id'];
+                            
+                            $availability_check = "SELECT room_id 
+                                                FROM reservation 
+                                                WHERE room_id = '$room_id'
+                                                AND reservation_status NOT IN ('CANCELLED', 'CHECKED OUT')
+                                                AND (
+                                                    (start_date < '$end_date' AND end_date > '$start_date')
+                                                )";
+                            $availability_result = mysqli_query($conn, $availability_check);
+                            
+                            if (mysqli_num_rows($availability_result) > 0) {
+                                $all_successful = false; 
+                                $errors[] = "Room $room_number is not available for the selected dates.";
+                                break;                            
+                                }
+                                else {                        
+                                // $sql_reservation = "INSERT INTO reservation (guest_id, room_id, contact_info, start_date, end_date, reservation_status) 
+                                //                 VALUES ('$new_guest_id', '$room_id', '$contact', '$start_date', '$end_date', '$reservation_status')";
+                                
+                                $sql_reservation = "CALL sp_make_reservation_with_payment($new_guest_id, $room_id, '$contact', '$start_date', '$end_date',$amount,'$payment_method')";
+                                
+                                if($res_result = mysqli_query($conn,$sql_reservation)){
+                                    $res_data = mysqli_fetch_assoc($res_result);
+
+                                    if (isset($res_data['reservation_id']) && $res_data['reservation_id'] > 0) {
+                                        $reservation_ids[] = $res_data['reservation_id'];
+                                        $success_count++;
+                                    }
+                                    else {
+                                        // FAILURE DETECTED: Mark the transaction to be killed
+                                        $all_successful = false;
+                                        $errors[] = "Room $room_number: " . ($res_data['message'] ?? "Reservation failed.");
+                                        break; // 5. EXIT THE LOOP IMMEDIATELY
+                                    }
+                                // $reservation_status = 'CONFIRMED';
+                                    
+                                    while(mysqli_more_results($conn)) {
+                                    mysqli_next_result($conn);
+                                    }
+
+                                    // $sql_pay = "INSERT INTO payment (amount, reservation_id, payment_method) VALUES ('$amount', '$new_res_id', '$payment_method')";
+                                    
+                                    // if (mysqli_query($conn, $sql_pay)) {
+                                    //     $success_count++;
+                                    //     $reservation_ids[] = $new_res_id;
+                                    // } else {
+                                    //     $errors[] = "Error processing payment for room $room_number: " . mysqli_error($conn);
+                                    // }
+                                } else {
+                                    $all_successful = false;
+                                    $errors[] = "Error creating reservation for room $room_number: " . mysqli_error($conn);
+
+                                    // $errors[] = "Technical error booking room $room_number.";
+                                    break;
+                                }
+                            }
+                        } else {
+                            $all_successful = false;
+                            $errors[] = "Room number $room_number does not exist.";
+                            break;
+                            // $errors[] = "Room number $room_number not found.";
+                        }
+                    }
+                    
+                    // if ($success_count > 0) {
+                    //     $booking_message = "Successfully booked $success_count room(s)! Reservation IDs: " . implode(', ', $reservation_ids) . ". Payment Status: PAID via CASH";
+                    //     if (count($errors) > 0) {
+                    //         $booking_message .= " | Errors: " . implode('; ', $errors);
+                    //     }
+                    //     $booking_status = "success";
+                    // } else {
+                    //     $booking_message = "No rooms were booked. " . implode('; ', $errors);
+                    //     $booking_status = "error";
+                    // }
+
+                    if($all_successful &&count($reservation_ids)>0){
+                        mysqli_commit($conn);
+                        $booking_message = "Successfully booked ".count($reservation_ids)." room(s)! Reservation IDs: " . implode(', ', $reservation_ids) . ". Payment Status: PAID via CASH";
+                        $booking_status = "success";
+                    }
+                    else{
+                        mysqli_rollback($conn);
+                        $booking_message = "Booking Failed. No rooms were reserved. Errors: " . implode('; ', $errors);
+                        $booking_status = "error";
+                    }
                 }
             }
         }
     }
+}catch(Exception $e){
+    error_log("Booking Error: " . $e->getMessage());
+
+    $booking_message = "An unexpected error occurred while processing your booking. Please try again later.".$e->getMessage();
+    $booking_status = "error";
 }
 ?>
 <!DOCTYPE html>
@@ -193,7 +257,8 @@ if (isset($_POST['SubmitBooking'])) {
         input[type="text"],
         input[type="email"],
         input[type="number"],
-        input[type="datetime-local"] {
+        input[type="tel"],
+        input[type="date"] {
             width: 100%;
             padding: 12px;
             border-radius: 12px;
@@ -208,7 +273,8 @@ if (isset($_POST['SubmitBooking'])) {
         input[type="text"]:focus,
         input[type="email"]:focus,
         input[type="number"]:focus,
-        input[type="datetime-local"]:focus {
+        input[type="tel"]:focus,
+        input[type="date"]:focus {
             outline: none;
             border-color: #b8a894;
             background: #ffffff;
@@ -493,18 +559,24 @@ if (isset($_POST['SubmitBooking'])) {
                        placeholder="juan@gmail.com" required>
             </div>
 
+            <div class="form-group">
+                <label for="contact_info">Contact Number</label>
+                <input type="tel" id="contact_info" name="contact_info" 
+                       placeholder="09xxxxxxxxx" required>
+            </div>
+
             <div class="row">
                 <div class="col-md-6">
                     <div class="form-group">
                         <label for="startDate">Check-in</label>
-                        <input type="datetime-local" id="startDate" name="start_date" 
+                        <input type="date" id="startDate" name="start_date" 
                                required onchange="updateCheckoutMin(); updateAllRoomTotals();">
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="form-group">
                         <label for="endDate">Check-out</label>
-                        <input type="datetime-local" id="endDate" name="end_date" 
+                        <input type="date" id="endDate" name="end_date" 
                                required onchange="updateAllRoomTotals();">
                     </div>
                 </div>
@@ -641,7 +713,10 @@ if (isset($_POST['SubmitBooking'])) {
             
             const start = new Date(startDate);
             const end = new Date(endDate);
-            const diffTime = Math.abs(end - start);
+            
+            //Replaced so that its only dates computed
+            // const diffTime = Math.abs(end - start);
+            const diffTime = end-start;
             const nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
             if (nights > 0) {
@@ -701,11 +776,19 @@ if (isset($_POST['SubmitBooking'])) {
             const checkin = new Date(checkinValue);
             const minCheckout = new Date(checkin);
             minCheckout.setDate(minCheckout.getDate() + 1);
-            minCheckout.setHours(14, 0, 0, 0);
+            // minCheckout.setHours(12, 0, 0, 0);
             
-            const minCheckoutStr = formatDateTimeLocal(minCheckout);
-            document.getElementById('endDate').min = minCheckoutStr;
-            document.getElementById('endDate').value = minCheckoutStr;
+            // const minCheckoutStr = formatDateTimeLocal(minCheckout);
+            const minCheckoutStr = minCheckout.toISOString().split('T')[0];
+            const endDateInput = document.getElementById('endDate');
+
+            endDateInput.min = minCheckoutStr;
+
+            if(endDateInput.value <=checkinValue){
+                endDateInput.value = minCheckoutStr;
+            }
+            // document.getElementById('endDate').min = minCheckoutStr;
+            // document.getElementById('endDate').value = minCheckoutStr;
         }
 
         function formatDateTimeLocal(date) {
@@ -718,31 +801,38 @@ if (isset($_POST['SubmitBooking'])) {
         }
 
         function setMinDates() {
-            const now = new Date();
-            const nowStr = formatDateTimeLocal(now);
-            document.getElementById('startDate').min = nowStr;
+            // const now = new Date();
+            // const nowStr = formatDateTimeLocal(now);
+            // document.getElementById('startDate').min = nowStr;
+            const today = new Date().toISOString().split('T')[0];
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+
+            startDateInput.min = today;
+            startDateInput.value = today;
+
+            updateCheckoutMin();
+            // const checkin = new Date();
+            // checkin.setHours(14, 0, 0, 0);
+            // document.getElementById('startDate').value = formatDateTimeLocal(checkin);
             
-            const checkin = new Date();
-            checkin.setHours(11, 0, 0, 0);
-            document.getElementById('startDate').value = formatDateTimeLocal(checkin);
-            
-            const checkout = new Date();
-            checkout.setDate(checkout.getDate() + 1);
-            checkout.setHours(14, 0, 0, 0);
-            document.getElementById('endDate').value = formatDateTimeLocal(checkout);
+            // const checkout = new Date();
+            // checkout.setDate(checkout.getDate() + 1);
+            // checkout.setHours(12, 0, 0, 0);
+            // document.getElementById('endDate').value = formatDateTimeLocal(checkout);
         }
 
-        document.getElementById('startDate').addEventListener('change', function() {
-            const selectedDate = new Date(this.value);
-            selectedDate.setHours(11, 0, 0, 0);
-            this.value = formatDateTimeLocal(selectedDate);
-        });
+        // document.getElementById('startDate').addEventListener('change', function() {
+        //     const selectedDate = new Date(this.value);
+        //     selectedDate.setHours(14, 0, 0, 0);
+        //     this.value = formatDateTimeLocal(selectedDate);
+        // });
 
-        document.getElementById('endDate').addEventListener('change', function() {
-            const selectedDate = new Date(this.value);
-            selectedDate.setHours(14, 0, 0, 0);
-            this.value = formatDateTimeLocal(selectedDate);
-        });
+        // document.getElementById('endDate').addEventListener('change', function() {
+        //     const selectedDate = new Date(this.value);
+        //     selectedDate.setHours(12, 0, 0, 0);
+        //     this.value = formatDateTimeLocal(selectedDate);
+        // });
 
         setMinDates();
         addRoomEntry();

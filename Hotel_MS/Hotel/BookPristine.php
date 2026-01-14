@@ -43,8 +43,8 @@ if (isset($_POST['SubmitBooking'])) {
         $email = mysqli_real_escape_string($conn, $_POST['email_address']);    
           $start_date_raw = mysqli_real_escape_string($conn, $_POST['start_date']);
           $end_date_raw = mysqli_real_escape_string($conn, $_POST['end_date']);        
-        $start_date = $start_date_raw . "14:00:00";
-        $end_date = $end_date_raw . "12:00:00";
+        $start_date = $start_date_raw . " 14:00:00";
+        $end_date = $end_date_raw . " 12:00:00";
         $contact = mysqli_real_escape_string($conn, $_POST['contact_info']);
         $amount = mysqli_real_escape_string($conn, $_POST['amount']);
         $requested_type_id = (int)$_POST['room_type_id'];
