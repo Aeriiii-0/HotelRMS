@@ -48,27 +48,29 @@ if (!$conn){
 
 if (isset($_POST['InsertSub'])){
     if($_POST['room_number']=='' || $_POST['room_type_id']==''){
-        die ("<br><center>Fields are incomplete </center>");
+        echo "<br><center>Fields are incomplete </center>";
     }
     else {
-
         if (!is_valid_room($_POST['room_number'])){
-           die( "<br><center>Invalid Value: Room Number. It should be within 100 - 999. </center>");
-        }
-        $room_num = mysqli_real_escape_string($conn, $_POST['room_number']);
-        $type_id = mysqli_real_escape_string($conn, $_POST['room_type_id']);
+           echo "<br><center>Invalid Value: Room Number. It should be within 100 - 999. </center>";
+        } else {
+            $room_num = mysqli_real_escape_string($conn, $_POST['room_number']);
+            $type_id = mysqli_real_escape_string($conn, $_POST['room_type_id']);
 
-        $sql= "INSERT INTO room (room_number, room_type_id) VALUES ('$room_num', '$type_id')";
-        try {
-            $result= mysqli_query($conn, $sql);
-
-            if($result){
-                echo "<br><center>Room Added.</center>";
-            } else {
-                die("<br><center>Error: " . mysqli_error($conn) . "</center>") ;
+            $sql= "INSERT INTO room (room_number, room_type_id) VALUES ('$room_num', '$type_id')";
+            try {
+                $result= mysqli_query($conn, $sql);
+                if($result){
+                    echo "<br><center>Room Added Successfully.</center>";
+                } 
+            } catch(mysqli_sql_exception $e){
+                // TARGETING THE CONSTRAINT ERROR
+                if ($e->getCode() == 1452) {
+                    echo "<br><center>Error:The Room Type ID ($type_id) does not exist. Please check the Room Type table.</center>";
+                } else {
+                    echo "<br><center>Error: " . $e->getMessage()."</center>";
+                }
             }
-        } catch(mysqli_sql_exception $e){
-            die("<br><center>Error: " . $e->getMessage()."</center>");
         }
     }
 }
@@ -99,9 +101,13 @@ if(isset($_POST['ViewSub'])){
 }
 
 if(isset($_POST['SearchSub'])){
+
     if(empty($_POST['room_id'])){
         echo "<br><center>Please enter a Room ID to search</center>";
     } else {
+        if ($_POST['room_id'] <= 0){
+            die("<br><center>Invalid Value: Room ID should not be less than or equal to 0.</center>");
+        }
         echo "<center><br>";
         $search_num = mysqli_real_escape_string($conn, $_POST['room_id']);
         $sql= "SELECT * FROM room WHERE room_id= '$search_num'";
@@ -129,10 +135,9 @@ if(isset($_POST['SearchSub'])){
     }
 }
 
-
 if(isset($_POST['EditSub'])){
     if($_POST['room_id']=='' || $_POST['room_number']==''|| $_POST['room_type_id'] == ''){
-         "<center>Incomplete Fields for updating.</center>";
+        echo "<br><center>Incomplete Fields for updating.</center>";
     } else {
         $id = mysqli_real_escape_string($conn, $_POST['room_id']);
         $num = mysqli_real_escape_string($conn, $_POST['room_number']);
@@ -141,20 +146,21 @@ if(isset($_POST['EditSub'])){
         try {
             $sql= "UPDATE room SET room_number = '$num', room_type_id = '$tid' WHERE room_id = '$id'";
             $result= mysqli_query($conn, $sql);
-
-           $count = mysqli_affected_rows($conn);
+            $count = mysqli_affected_rows($conn);
 
             if($count > 0){
-                echo "<br><br><center>Record Updated Successfully ($count row(s) changed).</center>";
-            } elseif($count == 0) {
-                echo "<br><br><center>No changes were made (Data is already identical) or no record with that ID</center>";
+                echo "<br><center>Record Updated Successfully.</center>";
             } else {
-                echo "<br><br><center>Error: Could not update record.</center>";
+                echo "<br><center>No changes were made or ID not found.</center>";
             }
-
         }
         catch (mysqli_sql_exception $e){
-            die("<br><br><center>Error: " . $e->getMessage()."</center>");
+            // TARGETING THE CONSTRAINT ERROR HERE TOO
+            if ($e->getCode() == 1452) {
+                echo "<br><center>Error: Cannot update. Room Type ID ($tid) is invalid.</center>";
+            } else {
+                echo "<br><center>Error: " . $e->getMessage()."</center>";
+            }
         }
     }
 }
@@ -163,6 +169,9 @@ if (isset($_POST['DeleteSub'])){
      if($_POST['room_id']==''){
         echo "<center>Please enter Room ID to delete.</center>";
     } else {
+         if ($_POST['room_id'] <= 0){
+            die("<br><center>Invalid Value: Room ID should not be less than or equal to 0.</center>");
+        }
         try{
             $id = mysqli_real_escape_string($conn, $_POST['room_id']);
             $sql="DELETE FROM room WHERE room_id = '$id'";

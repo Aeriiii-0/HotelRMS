@@ -106,6 +106,10 @@ if(isset($_POST['SearchSub'])){
         echo "<br><center>Please provide a Payment ID to search.</center>";
     }
     else{
+
+        if($_POST['payment_id'] <= 0){
+              die("<br><center>Invalid Value: Payment should not be less than or equal to 0.</center>");
+        }
         echo "<center><br>";
         $sql = "SELECT * FROM payment WHERE payment_id = '$_POST[payment_id]' ORDER BY date_created DESC";
         $result = mysqli_query($conn, $sql);
@@ -140,6 +144,9 @@ if(isset($_POST['EditSub'])){
         echo "<center>Please provide ID and all fields to update.</center>";
     }
     else{
+        if($_POST['payment_id'] <= 0){
+              die("<br><center>Invalid Value: Payment should not be less than or equal to 0.</center>");
+        }
         try {
             $sql = "UPDATE payment SET amount = '$_POST[amount]', 
                     reservation_id = '$_POST[reservation_id]', 
@@ -163,6 +170,9 @@ if (isset($_POST['DeleteSub'])){
         echo "<center>Please provide Payment ID to delete.</center>";
     }
     else{
+        if($_POST['payment_id'] <= 0){
+              die("<br><center>Invalid Value: Payment should not be less than or equal to 0.</center>");
+        }
         try {
             $sql = "DELETE FROM payment WHERE payment_id = '$_POST[payment_id]'";
             $result = mysqli_query($conn, $sql);

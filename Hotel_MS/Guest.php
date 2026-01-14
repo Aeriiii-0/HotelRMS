@@ -111,10 +111,15 @@ if(isset($_POST['SearchSub'])){
     $fname = mysqli_real_escape_string($conn, $_POST['first_name'] ?? '');
     $lname = mysqli_real_escape_string($conn, $_POST['last_name'] ?? '');
     $gid   = mysqli_real_escape_string($conn, $_POST['guest_id'] ?? '');
-
+    
     if(empty($fname) && empty($lname) && empty($gid)){
         echo "<br><center>Please enter an ID or Name to search</center>";
     } else {
+        if($_POST['guest_id'] <= 0){
+            die("<br><center>Invalid Value: Guest ID should not be less than or equal to 0 </center>");
+        }
+
+       
         echo "<center><br>";
         
         $sql = "SELECT * FROM guest WHERE 1=0 "; 
@@ -155,6 +160,10 @@ if(isset($_POST['EditSub'])){
         echo "<center>Incomplete Fields for Update.</center>";
     } else {
 
+        if($_POST['guest_id'] <= 0){
+            die("<br><center>Invalid Value: Guest ID should not be less than or equal to 0 </center>");
+        }
+
         if(!is_word($_POST['first_name'])){
             die("Invalid Format: First Name");
         }
@@ -190,6 +199,10 @@ if (isset($_POST['DeleteSub'])){
     if(empty($_POST['guest_id'])){
         echo "<center>Please provide Guest ID to delete.</center>";
     } else {
+        if($_POST['guest_id'] <= 0){
+            die("<br><center>Invalid Value: Guest ID should not be less than or equal to 0 </center>");
+        }
+        
         try{
             $id = mysqli_real_escape_string($conn, $_POST['guest_id']);
             $sql = "DELETE FROM guest WHERE guest_id = '$id'";

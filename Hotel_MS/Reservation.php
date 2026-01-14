@@ -18,6 +18,14 @@ if (!$conn){
     die("Error connecting database.".mysqli_error($conn));
 }
 
+
+$cleanup_sql = "CALL cleanup_expired_pending()";
+$cleanup_result = mysqli_query($conn, $cleanup_sql);
+
+// Crucial: Clear the results buffer so the login query doesn't fail later
+if ($cleanup_result) {
+    while(mysqli_next_result($conn)){;} 
+}
 // ============================================================================
 // LIST FOR JAVASCRIPT
 // ============================================================================
@@ -391,20 +399,24 @@ if(isset($_POST['EditSub'])){
 // ============================================================================
 if(isset($_POST['CancelSub'])){
     if($_POST['reservation_id']==''){
-        echo "<center>Please enter Reservation ID</center>";
+        echo "<br><center>Please enter Reservation ID</center>";
     }
     else{
         $reservation_id = mysqli_real_escape_string($conn, $_POST['reservation_id']);
+        $call_procedure = "CALL sp_update_reservation_status($reservation_id,'CANCELLED')";
+        $proc_result = mysqli_query($conn, $call_procedure);
         
-        // FIXED: Update triggers the room status change automatically
-        $sql= "UPDATE reservation SET reservation_status = 'CANCELLED' 
-               WHERE reservation_id = '$reservation_id'";
-        
-        $result= mysqli_query($conn, $sql);
-        if($result){
-            echo"<br><center><span style='color: #FFB74D;'>Reservation Cancelled.</span></center>";
-        } else {
-            echo"<br><center><span style='color: #E57373;'>Error cancelling reservation.</span></center>";
+        if($proc_result){
+            $proc_data = mysqli_fetch_assoc($proc_result);
+            
+            if (isset($proc_data['message'])) {
+                $color = ($proc_data['status'] === 'SUCCESS') ? '#81C784' : '#E57373';
+                echo "<br><center><span style='color: $color;'>".$proc_data['message']."</span></center>";
+            }
+            
+            while(mysqli_more_results($conn)) {
+                mysqli_next_result($conn);
+            }
         }
     }
 }
@@ -460,8 +472,8 @@ $pending_reservations ="SELECT
     SUM(CASE WHEN reservation_status = 'UNPROCESSED' THEN 1 ELSE 0 END) AS 'UNPROCESSED',
     COUNT(*) AS 'Total'    
 FROM reservation
-WHERE MONTH(start_date) = MONTH(CURRENT_DATE()) AND
-		YEAR(start_date) = YEAR(CURRENT_DATE());";
+WHERE MONTH(date_created) = MONTH(CURRENT_DATE()) AND
+		YEAR(date_created) = YEAR(CURRENT_DATE());";
 $pending_reservation_result = mysqli_query($conn,$pending_reservations); 
 $pending_result = mysqli_fetch_assoc($pending_reservation_result);
 ?>
@@ -479,7 +491,7 @@ $pending_result = mysqli_fetch_assoc($pending_reservation_result);
                     <option value="CHECKED IN">CHECKED IN</option>
                     <option value="CHECKED OUT">CHECKED OUT</option>
                     <option value="CANCELLED">CANCELLED</option>
-                    <option value="CANCELLED">UNPROCESSED</option>
+                    <option value="UNPROCESSED">UNPROCESSED</option>
                 </select>
                 
                 <label>Reservation ID:</label> 

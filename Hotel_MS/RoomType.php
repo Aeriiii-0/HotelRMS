@@ -111,8 +111,13 @@ if(isset($_POST['ViewSub'])){
 }
 
 if(isset($_POST['SearchSub'])){
-    if(!isset($_POST['root_type_id'])){
+
+    if(!isset($_POST['room_type_id']) || $_POST['room_type_id']== ''){
         die("<br><center>Enter Room Type ID. </center>");
+    }
+
+    if($_POST['room_type_id'] <=0){
+        die("<br><center>Invalid Value: Room Type ID should not be less than or equal to 0 </center>");
     }
     else{
         echo "<center><br>";
@@ -140,6 +145,8 @@ if(isset($_POST['SearchSub'])){
             }
             echo "</table>";
             echo "<br> Room Found.";
+        }else{
+            die("<center>No Room Type with that ID.</center>");
         }
         echo "</center>";
     }
@@ -150,6 +157,9 @@ if(isset($_POST['EditSub'])){
         echo "<center>Incomplete Fields.</center>";
     }
     else{
+        if($_POST['room_type_id'] <=0){
+            die("<br><center>Invalid Value: Room Type ID should not be less than or equal to 0 </center>");
+        }
         try {
 
              if (!is_word($_POST['room_type_name'])){
@@ -196,6 +206,9 @@ if (isset($_POST['DeleteSub'])){
         echo "<center>Incomplete Fields.</center>";
     }
     else{
+        if($_POST['room_type_id'] <=0){
+            die("<br><center>Invalid Value: Room Type ID should not be less than or equal to 0 </center>");
+        }
         try{
              $sql="DELETE FROM room_type WHERE room_type_id = '$_POST[room_type_id]'";
             $result= mysqli_query($conn, $sql);   
